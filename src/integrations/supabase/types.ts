@@ -557,6 +557,73 @@ export type Database = {
         }
         Relationships: []
       }
+      product_reviews: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          images: string[]
+          is_verified_purchase: boolean
+          order_id: string
+          product_id: string
+          rating: number
+          status: string
+          updated_at: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          images?: string[]
+          is_verified_purchase?: boolean
+          order_id: string
+          product_id: string
+          rating: number
+          status?: string
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          images?: string[]
+          is_verified_purchase?: boolean
+          order_id?: string
+          product_id?: string
+          rating?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category_id: string | null
@@ -570,6 +637,8 @@ export type Database = {
           price_mga: number
           price_usdt: number | null
           promo_until: string | null
+          rating_avg: number
+          rating_count: number
           sold_count: number
           stock: number
           title: string
@@ -592,6 +661,8 @@ export type Database = {
           price_mga: number
           price_usdt?: number | null
           promo_until?: string | null
+          rating_avg?: number
+          rating_count?: number
           sold_count?: number
           stock?: number
           title: string
@@ -614,6 +685,8 @@ export type Database = {
           price_mga?: number
           price_usdt?: number | null
           promo_until?: string | null
+          rating_avg?: number
+          rating_count?: number
           sold_count?: number
           stock?: number
           title?: string
@@ -630,6 +703,41 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_reports: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string
+          reporter_id: string
+          review_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason: string
+          reporter_id: string
+          review_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string
+          reporter_id?: string
+          review_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_reports_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "product_reviews"
             referencedColumns: ["id"]
           },
         ]
@@ -772,6 +880,8 @@ export type Database = {
           pickup_quartier: string | null
           pickup_region: string | null
           pickup_street: string | null
+          rating_avg: number
+          rating_count: number
           shipping_base_mga: number
           shipping_per_km_mga: number
           shipping_zones: Json
@@ -794,6 +904,8 @@ export type Database = {
           pickup_quartier?: string | null
           pickup_region?: string | null
           pickup_street?: string | null
+          rating_avg?: number
+          rating_count?: number
           shipping_base_mga?: number
           shipping_per_km_mga?: number
           shipping_zones?: Json
@@ -816,6 +928,8 @@ export type Database = {
           pickup_quartier?: string | null
           pickup_region?: string | null
           pickup_street?: string | null
+          rating_avg?: number
+          rating_count?: number
           shipping_base_mga?: number
           shipping_per_km_mga?: number
           shipping_zones?: Json
