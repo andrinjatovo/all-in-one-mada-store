@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,10 +8,22 @@ import { addToCart } from "@/lib/cart";
 import { AddressSelector } from "@/components/madastore/AddressSelector";
 import { ShippingQuoteCard, type Quote } from "@/components/madastore/ShippingQuoteCard";
 import type { AddressRow } from "@/components/madastore/AddressForm";
-import { MessageCircle, ShoppingBag, Heart, Send, ShoppingCart, X, Minus, Plus } from "lucide-react";
+import { MessageCircle, ShoppingBag, Heart, Send, ShoppingCart, X, Minus, Plus, Store, ThumbsUp, Clock3, PackageCheck } from "lucide-react";
 import { BackButton } from "@/components/madastore/BackButton";
+import { ProductGallery } from "@/components/madastore/ProductGallery";
+import { ProductShare } from "@/components/madastore/ProductShare";
+import { ProductReviews, Stars } from "@/components/madastore/ProductReviews";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/product/$id")({
+  head: () => ({ meta: [
+    { title: "Voir le produit — ALL IN ONE MADA STORE" },
+    { name: "description", content: "Prix, variantes, avis vérifiés et livraison d’un produit sur ALL IN ONE MADA STORE." },
+    { property: "og:title", content: "Voir le produit — ALL IN ONE MADA STORE" },
+    { property: "og:description", content: "Découvrez ce produit, ses variantes et les avis clients vérifiés." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary_large_image" },
+  ] }),
   component: ProductPage,
 });
 
@@ -28,7 +40,8 @@ function ProductPage() {
   const [loading, setLoading] = useState(true);
 
   const [likes, setLikes] = useState(0);
-  const [liked, setLiked] = useState(false);
+  const [loves, setLoves] = useState(0);
+  const [reaction, setReaction] = useState<"like" | "love" | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
 
@@ -37,6 +50,7 @@ function ProductPage() {
   const [qty, setQty] = useState(1);
   const [color, setColor] = useState<string | null>(null);
   const [size, setSize] = useState<string | null>(null);
+  const [unit, setUnit] = useState<string | null>(null);
   const [address, setAddress] = useState<AddressRow | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [buying, setBuying] = useState(false);
@@ -46,7 +60,7 @@ function ProductPage() {
       const { data } = await supabase.from("products").select("*").eq("id", id).eq("is_active", true).maybeSingle();
       setP(data);
       if (data) {
-        const { data: v } = await supabase.from("vendor_profiles").select("id, shop_name, phone").eq("id", data.vendor_id).maybeSingle();
+        const { data: v } = await supabase.from("vendor_profiles").select("id,shop_name,phone,logo_url,description,created_at,rating_avg,rating_count").eq("id", data.vendor_id).maybeSingle();
         setVendor(v);
         supabase.rpc("increment_product_view" as any, { _product_id: id } as any).then(() => {});
         supabase.rpc("track_event" as any, { _event_type: "view", _product_id: id } as any).then(() => {});
@@ -71,12 +85,13 @@ function ProductPage() {
 
 
   async function reloadEngagement() {
-    const [{ data: l, count }, { data: c }] = await Promise.all([
-      supabase.from("product_likes").select("user_id", { count: "exact" }).eq("product_id", id),
+    const [{ data: l }, { data: c }] = await Promise.all([
+      supabase.from("product_likes").select("user_id,reaction").eq("product_id", id),
       supabase.from("product_comments").select("*").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
     ]);
-    setLikes(count ?? 0);
-    setLiked(!!l?.find((x: any) => x.user_id === user?.id));
+    setLikes(l?.filter((item: any) => (item.reaction ?? "like") === "like").length ?? 0);
+    setLoves(l?.filter((item: any) => item.reaction === "love").length ?? 0);
+    setReaction((l?.find((item: any) => item.user_id === user?.id)?.reaction as "like" | "love" | undefined) ?? null);
     setComments((c ?? []) as Comment[]);
   }
 
@@ -96,18 +111,21 @@ function ProductPage() {
   const displayPrice = promoPct ? Math.floor((basePrice * (100 - promoPct)) / 100) : basePrice;
   const discounted = qty >= 10;
   const effUnit = discounted ? Math.floor(displayPrice * 0.98) : displayPrice;
+  const promoRemaining = usePromoRemaining(p?.promo_until, promoPct > 0);
 
 
   function openPopup(mode: "cart" | "buy") {
     setQty(1);
     setColor(null);
     setSize(null);
+    setUnit(null);
     setPopup(mode);
   }
 
   function confirmAddToCart() {
     if (currentVariant?.colors?.length && !color) return toast.error("Choisissez une couleur");
     if (currentVariant?.sizes?.length && !size) return toast.error("Choisissez une taille/pointure");
+    if (currentVariant?.units?.length && !unit) return toast.error("Choisissez une unité");
     addToCart({
       product_id: p.id,
       vendor_id: p.vendor_id,
@@ -117,6 +135,7 @@ function ProductPage() {
       qty,
       color,
       size,
+      unit,
     });
     toast.success("Ajouté au panier 🛒");
     setPopup(null);
@@ -126,10 +145,11 @@ function ProductPage() {
     if (!user) return;
     if (currentVariant?.colors?.length && !color) return toast.error("Choisissez une couleur");
     if (currentVariant?.sizes?.length && !size) return toast.error("Choisissez une taille/pointure");
+    if (currentVariant?.units?.length && !unit) return toast.error("Choisissez une unité");
     if (!address) return toast.error("Adresse de livraison requise");
     if (!quote) return toast.error("Livraison en cours de calcul...");
     setBuying(true);
-    const note = [color && `Couleur: ${color}`, size && `Taille: ${size}`].filter(Boolean).join(" | ");
+    const note = [color && `Couleur: ${color}`, size && `Taille: ${size}`, unit && `Unité: ${unit}`].filter(Boolean).join(" | ");
     const addrText = `${address.full_name} · ${address.phone} · ${[address.street, address.quartier, address.city, address.province].filter(Boolean).join(", ")}${note ? " | " + note : ""}`;
     const { error } = await supabase.rpc("place_order" as any, {
       _product_id: id,
@@ -158,18 +178,23 @@ function ProductPage() {
     if (!user || !vendor) return;
     const { data: existing } = await supabase
       .from("conversations").select("id").eq("client_id", user.id).eq("vendor_id", vendor.id).maybeSingle();
-    if (!existing) {
-      await supabase.from("conversations").insert({ client_id: user.id, vendor_id: vendor.id });
+    let conversationId = existing?.id;
+    if (!conversationId) {
+      const { data: created, error } = await supabase.from("conversations").insert({ client_id: user.id, vendor_id: vendor.id }).select("id").single();
+      if (error) return toast.error(error.message);
+      conversationId = created.id;
     }
-    navigate({ to: dashboardPathForRole(role) });
+    navigate({ to: "/conversation/$id", params: { id: conversationId } });
   }
 
-  async function toggleLike() {
+  async function toggleReaction(next: "like" | "love") {
     if (!user) return;
-    if (liked) {
+    if (reaction === next) {
       await supabase.from("product_likes").delete().eq("product_id", id).eq("user_id", user.id);
+    } else if (reaction) {
+      await supabase.from("product_likes").update({ reaction: next }).eq("product_id", id).eq("user_id", user.id);
     } else {
-      await supabase.from("product_likes").insert({ product_id: id, user_id: user.id });
+      await supabase.from("product_likes").insert({ product_id: id, user_id: user.id, reaction: next });
     }
     reloadEngagement();
   }
@@ -199,26 +224,15 @@ function ProductPage() {
         <Link to="/cart" className="rounded-lg p-1 hover:bg-muted"><ShoppingCart className="h-5 w-5" /></Link>
       </header>
 
-      <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+      <div className="mx-auto max-w-5xl py-4 space-y-5">
         {/* Slider images */}
-        <div className="overflow-hidden rounded-3xl bg-muted aspect-square">
-          {p.images?.[imgIdx] ? <img src={p.images[imgIdx]} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-6xl">📦</div>}
-        </div>
-        {p.images?.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto">
-            {p.images.map((u: string, i: number) => (
-              <button key={i} onClick={() => setImgIdx(i)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${i === imgIdx ? "border-mada-red" : "border-transparent"}`}>
-                <img src={u} alt="" className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
+        <ProductGallery images={p.images ?? []} title={p.title} active={imgIdx} onChange={setImgIdx} />
 
         {p.video_url && (
           <video src={p.video_url} controls className="w-full rounded-2xl bg-black aspect-video" />
         )}
 
-        <div>
+        <div className="space-y-3 px-4 sm:px-0">
           <div className="flex items-baseline gap-2">
             <div className="text-3xl font-black text-mada-red">{formatMGA(displayPrice)}</div>
             {promoPct > 0 && (
@@ -236,33 +250,33 @@ function ProductPage() {
           </div>
           <div className="text-sm text-muted-foreground">≈ {formatUSDT(displayPrice)}</div>
           <h2 className="mt-2 text-lg font-bold">{p.title}</h2>
+          {promoPct > 0 && p.promo_until && <div className="inline-flex items-center gap-2 rounded-md border border-mada-red/40 bg-mada-red/10 px-3 py-2 text-xs font-bold text-mada-red"><Clock3 className="h-4 w-4" /> Promotion limitée · {promoRemaining}</div>}
           <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{p.description}</p>
-          <div className="mt-2 text-xs">Stock: <strong>{p.stock}</strong></div>
+          <div className="flex flex-wrap gap-3 text-xs"><span>Stock disponible : <strong>{p.stock}</strong></span><span className="inline-flex items-center gap-1"><PackageCheck className="h-4 w-4 text-mada-green" /> <strong>{p.sold_count ?? 0}</strong> vendus</span><Stars value={Number(p.rating_avg ?? 0)} count={p.rating_count ?? 0} /></div>
         </div>
 
         {/* Reactions row */}
-        <div className="flex items-center gap-3">
-          <button onClick={toggleLike} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${liked ? "border-mada-red bg-mada-red/10 text-mada-red" : "border-border bg-card"}`}>
-            <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} /> 👍 {likes}
-          </button>
-          <button onClick={toggleLike} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${liked ? "border-mada-red bg-mada-red/10 text-mada-red" : "border-border bg-card"}`}>
-            ❤️ Love
-          </button>
+        <div className="flex flex-wrap items-center gap-2 px-4 sm:px-0">
+          <Button variant={reaction === "like" ? "default" : "outline"} size="sm" onClick={() => toggleReaction("like")}><ThumbsUp /> J’aime {likes}</Button>
+          <Button variant={reaction === "love" ? "default" : "outline"} size="sm" onClick={() => toggleReaction("love")}><Heart className={reaction === "love" ? "fill-current" : ""} /> J’adore {loves}</Button>
           <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold">
             <MessageCircle className="h-4 w-4" /> {comments.length}
           </div>
+          <ProductShare title={p.title} />
         </div>
 
         {vendor && (
-          <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-3">
-            <div>
+          <div className="mx-4 flex items-center justify-between gap-3 rounded-md border border-border bg-card p-4 sm:mx-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-md bg-muted font-black">{vendor.logo_url ? <img src={vendor.logo_url} alt={`Logo ${vendor.shop_name}`} className="h-full w-full object-cover" /> : vendor.shop_name.slice(0, 1)}</div><div className="min-w-0">
               <div className="text-[10px] font-bold uppercase text-muted-foreground">Vendeur</div>
-              <div className="font-bold text-sm">{vendor.shop_name}</div>
-            </div>
+              <div className="truncate font-bold text-sm">{vendor.shop_name}</div><Stars value={Number(vendor.rating_avg ?? 0)} count={vendor.rating_count ?? 0} />
+            </div></div>
+            <Button asChild variant="outline" size="sm"><Link to="/shop/$vendorId" params={{ vendorId: vendor.id }}><Store /> Voir la boutique</Link></Button>
           </div>
         )}
 
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <div className="mx-4 rounded-md border border-border bg-card p-4 space-y-3 sm:mx-0">
           <h3 className="text-sm font-black">💬 Commentaires</h3>
           {user && (
             <div className="flex gap-2">
@@ -273,7 +287,7 @@ function ProductPage() {
                 maxLength={1000}
                 className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
               />
-              <button onClick={postComment} className="rounded-lg bg-mada-red px-3 text-primary-foreground"><Send className="h-4 w-4" /></button>
+              <Button onClick={postComment} size="icon" aria-label="Publier le commentaire"><Send /></Button>
             </div>
           )}
           {comments.length === 0 ? (
@@ -289,23 +303,24 @@ function ProductPage() {
             </div>
           )}
         </div>
+        <div className="px-4 sm:px-0"><ProductReviews productId={id} vendorId={p.vendor_id} userId={user?.id} ratingAvg={Number(p.rating_avg ?? 0)} ratingCount={p.rating_count ?? 0} onPublished={() => supabase.from("products").select("*").eq("id", id).single().then(({ data }) => data && setP(data))} /></div>
       </div>
 
       {/* Bottom fixed action bar */}
       {role === "client" && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-3 py-2 shadow-2xl">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl">
           <div className="mx-auto flex max-w-3xl items-center gap-2">
-            <button onClick={contactSeller} className="flex flex-1 flex-col items-center justify-center rounded-xl border border-border py-2 text-[10px] font-bold">
+            <Button variant="outline" onClick={contactSeller} className="h-12 flex-1 flex-col gap-0 text-[10px]">
               <MessageCircle className="h-5 w-5 text-mada-green" />
               Message
-            </button>
-            <button onClick={() => openPopup("cart")} className="flex flex-1 flex-col items-center justify-center rounded-xl border border-border py-2 text-[10px] font-bold">
+            </Button>
+            <Button variant="outline" onClick={() => openPopup("cart")} className="h-12 flex-1 flex-col gap-0 text-[10px]">
               <ShoppingCart className="h-5 w-5 text-mada-red" />
               Panier
-            </button>
-            <button onClick={() => openPopup("buy")} disabled={p.stock === 0} className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-mada-red py-3 text-sm font-black text-primary-foreground shadow-glow-red disabled:opacity-50">
+            </Button>
+            <Button onClick={() => openPopup("buy")} disabled={p.stock === 0} className="h-12 flex-[2] font-black shadow-glow-red">
               <ShoppingBag className="h-4 w-4" /> {p.stock === 0 ? "Rupture" : "Acheter"}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -353,7 +368,7 @@ function ProductPage() {
                 <div className="text-xs font-bold uppercase mb-2">Unité / mesure</div>
                 <div className="flex flex-wrap gap-2">
                   {currentVariant?.units?.map((u) => (
-                    <span key={u} className="rounded-full border border-mada-red/40 bg-mada-red/5 px-3 py-1 text-xs font-bold text-mada-red">{u}</span>
+                    <Button type="button" key={u} variant={unit === u ? "default" : "outline"} size="sm" onClick={() => setUnit(u)}>{u}</Button>
                   ))}
                   {currentVariant?.custom && (
                     <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs">{currentVariant.custom}</span>

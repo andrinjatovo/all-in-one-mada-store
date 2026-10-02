@@ -6,7 +6,7 @@ import { Send, Image as ImageIcon, ArrowLeft } from "lucide-react";
 type Conv = { id: string; client_id: string; vendor_id: string; last_message_at: string };
 type Msg = { id: string; sender_id: string; content: string | null; image_url: string | null; created_at: string };
 
-export function MessagesPanel({ userId }: { userId: string }) {
+export function MessagesPanel({ userId, initialConversationId }: { userId: string; initialConversationId?: string }) {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [selected, setSelected] = useState<Conv | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -22,6 +22,7 @@ export function MessagesPanel({ userId }: { userId: string }) {
       .order("last_message_at", { ascending: false });
     const cs = (data ?? []) as Conv[];
     setConvs(cs);
+    if (initialConversationId) setSelected(cs.find((conversation) => conversation.id === initialConversationId) ?? null);
     // load labels (other party name)
     const otherIds = cs.map((c) => (c.client_id === userId ? c.vendor_id : c.client_id));
     if (otherIds.length) {
