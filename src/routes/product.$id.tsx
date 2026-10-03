@@ -118,7 +118,10 @@ function ProductPage() {
   }, [p, user]);
 
   useEffect(() => {
-    if (!authLoading && !user) navigate({ to: "/auth/client" });
+    if (!authLoading && !user) {
+      window.sessionStorage.setItem("mada-return-after-login", window.location.pathname + window.location.search);
+      navigate({ to: "/auth/client" });
+    }
   }, [authLoading, user, navigate]);
 
   const variants: Variant[] = Array.isArray(p?.variants) ? p.variants : [];
