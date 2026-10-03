@@ -75,6 +75,12 @@ export function AuthCard({ variant, title, subtitle, accent, icon }: Props) {
         const priority: AppRole[] = ["admin", "vendeur", "client"];
         const role = priority.find((r) => roles?.some((x) => x.role === r)) ?? null;
         toast.success("Connecté avec succès");
+        const intendedPath = window.sessionStorage.getItem("mada-return-after-login");
+        if (intendedPath?.startsWith("/") && !intendedPath.startsWith("//")) {
+          window.sessionStorage.removeItem("mada-return-after-login");
+          window.location.assign(intendedPath);
+          return;
+        }
         navigate({ to: dashboardPathForRole(role) });
       } else {
         if (!allAccepted) throw new Error("Veuillez accepter les conditions obligatoires");
