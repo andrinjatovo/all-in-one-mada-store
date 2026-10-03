@@ -30,6 +30,24 @@ export const Route = createFileRoute("/product/$id")({
 type Variant = { image_index: number; price_mga: number; colors: string[]; sizes: string[]; units?: string[]; custom?: string };
 type Comment = { id: string; user_id: string; author_name: string | null; content: string; created_at: string };
 
+function usePromoRemaining(until: string | null | undefined, active: boolean) {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    if (!until || !active) { setLabel(""); return; }
+    function refresh() {
+      const remaining = Math.max(0, new Date(until as string).getTime() - Date.now());
+      const days = Math.floor(remaining / 86_400_000);
+      const hours = Math.floor((remaining % 86_400_000) / 3_600_000);
+      const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+      setLabel(remaining === 0 ? "terminée" : days > 0 ? `${days} j ${hours} h restantes` : `${hours} h ${minutes} min restantes`);
+    }
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    return () => window.clearInterval(timer);
+  }, [until, active]);
+  return label;
+}
+
 function ProductPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
