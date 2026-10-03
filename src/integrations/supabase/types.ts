@@ -79,19 +79,31 @@ export type Database = {
           auto_release_days: number
           commission_rate: number
           id: number
+          min_shop_age_months: number
+          min_stock_per_item: number
           updated_at: string
+          usdt_rate_mga: number
+          usdt_rate_updated_at: string
         }
         Insert: {
           auto_release_days?: number
           commission_rate?: number
           id?: number
+          min_shop_age_months?: number
+          min_stock_per_item?: number
           updated_at?: string
+          usdt_rate_mga?: number
+          usdt_rate_updated_at?: string
         }
         Update: {
           auto_release_days?: number
           commission_rate?: number
           id?: number
+          min_shop_age_months?: number
+          min_stock_per_item?: number
           updated_at?: string
+          usdt_rate_mga?: number
+          usdt_rate_updated_at?: string
         }
         Relationships: []
       }
@@ -275,6 +287,30 @@ export type Database = {
           reviewed_at?: string | null
           status?: Database["public"]["Enums"]["deposit_status"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      exchange_rate_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          currency: string
+          id: string
+          rate_mga: number
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          rate_mga: number
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          rate_mga?: number
         }
         Relationships: []
       }
@@ -864,6 +900,124 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_application_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          application_id: string
+          created_at: string
+          id: string
+          note: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          application_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          application_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_application_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_applications: {
+        Row: {
+          correction_request: string | null
+          created_at: string
+          data: Json
+          decision_reason: string | null
+          exception_allowed: boolean
+          form_version: string
+          id: string
+          ref: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          correction_request?: string | null
+          created_at?: string
+          data?: Json
+          decision_reason?: string | null
+          exception_allowed?: boolean
+          form_version?: string
+          id?: string
+          ref?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          correction_request?: string | null
+          created_at?: string
+          data?: Json
+          decision_reason?: string | null
+          exception_allowed?: boolean
+          form_version?: string
+          id?: string
+          ref?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vendor_doc_access_log: {
+        Row: {
+          admin_id: string
+          application_id: string
+          created_at: string
+          id: string
+          path: string
+        }
+        Insert: {
+          admin_id: string
+          application_id: string
+          created_at?: string
+          id?: string
+          path: string
+        }
+        Update: {
+          admin_id?: string
+          application_id?: string
+          created_at?: string
+          id?: string
+          path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_doc_access_log_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_profiles: {
         Row: {
           address: string | null
@@ -1054,12 +1208,30 @@ export type Database = {
         Args: { _note?: string; _order_id: string }
         Returns: undefined
       }
+      admin_review_vendor_application: {
+        Args: {
+          _action: string
+          _allow_exception?: boolean
+          _id: string
+          _note: string
+        }
+        Returns: undefined
+      }
       admin_send_to_client: {
         Args: { _amount: number; _client_id: string; _note?: string }
         Returns: undefined
       }
       admin_transfer_funds: {
         Args: { _amount: number; _direction: string }
+        Returns: undefined
+      }
+      admin_update_vendor_settings: {
+        Args: {
+          _commission: number
+          _min_age: number
+          _min_stock: number
+          _usdt: number
+        }
         Returns: undefined
       }
       admin_validate_deposit: {
@@ -1163,6 +1335,7 @@ export type Database = {
         }
         Returns: string
       }
+      submit_vendor_application: { Args: never; Returns: string }
       track_event: {
         Args: {
           _dwell_ms?: number
@@ -1260,7 +1433,7 @@ export type Database = {
         | "retrait_refus"
         | "transfert_admin"
         | "envoi_admin"
-      vendor_status: "en_attente" | "actif" | "rejete"
+      vendor_status: "en_attente" | "actif" | "rejete" | "suspendu"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1412,7 +1585,7 @@ export const Constants = {
         "transfert_admin",
         "envoi_admin",
       ],
-      vendor_status: ["en_attente", "actif", "rejete"],
+      vendor_status: ["en_attente", "actif", "rejete", "suspendu"],
     },
   },
 } as const
