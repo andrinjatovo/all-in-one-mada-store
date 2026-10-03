@@ -9,6 +9,7 @@
 - [x] Créer la boutique publique avec statistiques et grille de produits
 - [x] Ouvrir directement la conversation avec le vendeur
 - [x] Conserver achat immédiat et panier avec variantes sélectionnées
-- [ ] Corriger les erreurs de compilation éventuelles
-- [ ] Tester mobile et ordinateur, liens directs, retour et absence de débordement
-- [ ] Vérifier les journaux d’erreurs finaux
+- [x] Corriger les erreurs de compilation éventuelles
+- [ ] Tester avec un compte client : variantes, panier, achat, message, avis photo et retour
+- [x] Tester les liens directs sans session, la reprise après connexion et l’absence de débordement
+- [x] Vérifier les journaux d’erreurs finaux
