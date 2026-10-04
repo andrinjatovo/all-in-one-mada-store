@@ -43,6 +43,13 @@
       "when": 1791031649611,
       "tag": "0005_vendor_applications",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791105387603,
+      "tag": "0006_vendor_docs_storage",
+      "breakpoints": true
     }
   ]
 }
