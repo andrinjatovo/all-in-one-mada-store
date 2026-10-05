@@ -7,7 +7,8 @@ import { TicketsPanel } from "@/components/madastore/TicketsPanel";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMGA } from "@/components/madastore/Money";
-import { Store, Wallet, LifeBuoy, BarChart3, ArrowDownToLine, Truck } from "lucide-react";
+import { Store, Wallet, FileCheck, LifeBuoy, BarChart3, ArrowDownToLine, Truck } from "lucide-react";
+import { AdminVendorApplications, AdminVendorSettings } from "@/components/madastore/AdminVendorApplications";
 import { AdminWalletPanel } from "@/components/madastore/AdminWalletPanel";
 
 export const Route = createFileRoute("/admin")({
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/admin")({
 
 const TABS = [
   { id: "stats", label: "Stats", icon: <BarChart3 className="h-5 w-5" /> },
+  { id: "applications", label: "Dossiers", icon: <FileCheck className="h-5 w-5" /> },
   { id: "vendors", label: "Vendeurs", icon: <Store className="h-5 w-5" /> },
   { id: "deposits", label: "Dépôts", icon: <Wallet className="h-5 w-5" /> },
   { id: "wallet", label: "Wallet", icon: <ArrowDownToLine className="h-5 w-5" /> },
@@ -35,7 +37,8 @@ function AdminPage() {
       <TabNav tabs={TABS} active={tab} onChange={setTab} />
       <div className="mt-2 pb-2">
         {tab === "stats" && <Stats />}
-        {tab === "vendors" && <VendorsManager />}
+        {tab === "applications" && <AdminVendorApplications />}
+        {tab === "vendors" && <div className="space-y-3"><AdminVendorSettings /><VendorsManager /></div>}
         {tab === "deposits" && <DepositsManager />}
         {user && tab === "wallet" && <AdminWalletPanel userId={user.id} />}
         {tab === "logistics" && <LogisticsPanel />}
