@@ -403,6 +403,44 @@ export type Database = {
         }
         Relationships: []
       }
+      order_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          field: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          order_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          field: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          order_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          field?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           address_id: string | null
@@ -412,6 +450,7 @@ export type Database = {
           client_id: string
           commission_mga: number
           coop_name: string | null
+          coupon_percent: number | null
           courier_name: string | null
           created_at: string
           delivered_at: string | null
@@ -424,6 +463,9 @@ export type Database = {
           eta_at: string | null
           id: string
           in_transit_at: string | null
+          negotiated_offer_id: string | null
+          normal_unit_price_mga: number | null
+          payment_method: string
           product_id: string
           product_image: string | null
           product_title: string
@@ -438,8 +480,12 @@ export type Database = {
           tracking_status: string
           unit_price_mga: number
           updated_at: string
+          variant_label: string | null
+          vendor_acceptance: string
           vendor_amount_mga: number
+          vendor_decided_at: string | null
           vendor_id: string
+          vendor_refusal_reason: string | null
           vendor_released: boolean
         }
         Insert: {
@@ -450,6 +496,7 @@ export type Database = {
           client_id: string
           commission_mga?: number
           coop_name?: string | null
+          coupon_percent?: number | null
           courier_name?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -462,6 +509,9 @@ export type Database = {
           eta_at?: string | null
           id?: string
           in_transit_at?: string | null
+          negotiated_offer_id?: string | null
+          normal_unit_price_mga?: number | null
+          payment_method?: string
           product_id: string
           product_image?: string | null
           product_title: string
@@ -476,8 +526,12 @@ export type Database = {
           tracking_status?: string
           unit_price_mga: number
           updated_at?: string
+          variant_label?: string | null
+          vendor_acceptance?: string
           vendor_amount_mga?: number
+          vendor_decided_at?: string | null
           vendor_id: string
+          vendor_refusal_reason?: string | null
           vendor_released?: boolean
         }
         Update: {
@@ -488,6 +542,7 @@ export type Database = {
           client_id?: string
           commission_mga?: number
           coop_name?: string | null
+          coupon_percent?: number | null
           courier_name?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -500,6 +555,9 @@ export type Database = {
           eta_at?: string | null
           id?: string
           in_transit_at?: string | null
+          negotiated_offer_id?: string | null
+          normal_unit_price_mga?: number | null
+          payment_method?: string
           product_id?: string
           product_image?: string | null
           product_title?: string
@@ -514,8 +572,12 @@ export type Database = {
           tracking_status?: string
           unit_price_mga?: number
           updated_at?: string
+          variant_label?: string | null
+          vendor_acceptance?: string
           vendor_amount_mga?: number
+          vendor_decided_at?: string | null
           vendor_id?: string
+          vendor_refusal_reason?: string | null
           vendor_released?: boolean
         }
         Relationships: [
@@ -538,6 +600,91 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_offers: {
+        Row: {
+          client_id: string
+          color: string | null
+          conversation_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          order_id: string | null
+          parent_id: string | null
+          product_id: string
+          proposed_by: string
+          public_unit_price_mga: number
+          quantity: number
+          size: string | null
+          status: string
+          unit: string | null
+          unit_price_mga: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          client_id: string
+          color?: string | null
+          conversation_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          order_id?: string | null
+          parent_id?: string | null
+          product_id: string
+          proposed_by: string
+          public_unit_price_mga: number
+          quantity: number
+          size?: string | null
+          status?: string
+          unit?: string | null
+          unit_price_mga: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          client_id?: string
+          color?: string | null
+          conversation_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          order_id?: string | null
+          parent_id?: string | null
+          product_id?: string
+          proposed_by?: string
+          public_unit_price_mga?: number
+          quantity?: number
+          size?: string | null
+          status?: string
+          unit?: string | null
+          unit_price_mga?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_offers_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_offers_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "price_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_offers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -1274,6 +1421,7 @@ export type Database = {
           view_count: number
         }[]
       }
+      get_order_invoice: { Args: { _order_id: string }; Returns: Json }
       grant_loyalty_coupons: { Args: never; Returns: number }
       has_role: {
         Args: {
@@ -1286,6 +1434,7 @@ export type Database = {
         Args: { lat1: number; lat2: number; lng1: number; lng2: number }
         Returns: number
       }
+      hide_old_client_orders: { Args: never; Returns: number }
       increment_product_click: {
         Args: { _product_id: string }
         Returns: undefined
@@ -1293,6 +1442,18 @@ export type Database = {
       increment_product_view: {
         Args: { _product_id: string }
         Returns: undefined
+      }
+      pay_price_offer: {
+        Args: {
+          _address: string
+          _address_id?: string
+          _delivery_days_max?: number
+          _delivery_days_min?: number
+          _delivery_fee?: number
+          _delivery_km?: number
+          _offer_id: string
+        }
+        Returns: string
       }
       place_order:
         | {
@@ -1326,6 +1487,18 @@ export type Database = {
         }
         Returns: string
       }
+      propose_price_offer: {
+        Args: {
+          _color?: string
+          _conversation_id: string
+          _product_id: string
+          _quantity: number
+          _size?: string
+          _unit?: string
+          _unit_price: number
+        }
+        Returns: string
+      }
       request_withdrawal: {
         Args: {
           _account: string
@@ -1333,6 +1506,10 @@ export type Database = {
           _holder?: string
           _method: string
         }
+        Returns: string
+      }
+      respond_price_offer: {
+        Args: { _action: string; _counter_price?: number; _offer_id: string }
         Returns: string
       }
       submit_vendor_application: { Args: never; Returns: string }
@@ -1343,6 +1520,10 @@ export type Database = {
           _product_id?: string
           _query?: string
         }
+        Returns: undefined
+      }
+      vendor_decide_order: {
+        Args: { _accept: boolean; _order_id: string; _reason?: string }
         Returns: undefined
       }
       vendor_mark_in_transit: {
