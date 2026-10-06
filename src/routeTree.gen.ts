@@ -22,6 +22,7 @@ import { Route as LegalSlugRouteImport } from './routes/legal/$slug'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as ShopVendorIdRouteImport } from './routes/shop.$vendorId'
 import { Route as OauthGoogleDriveReturnRouteImport } from './routes/oauth/google-drive/return'
+import { Route as OrderIdInvoiceRouteImport } from './routes/order.$id.invoice'
 import { Route as OrderIdTrackingRouteImport } from './routes/order.$id.tracking'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const OauthGoogleDriveReturnRoute = OauthGoogleDriveReturnRouteImport.update({
   path: '/oauth/google-drive/return',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrderIdInvoiceRoute = OrderIdInvoiceRouteImport.update({
+  id: '/order/$id/invoice',
+  path: '/order/$id/invoice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrderIdTrackingRoute = OrderIdTrackingRouteImport.update({
   id: '/order/$id/tracking',
   path: '/order/$id/tracking',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/shop/$vendorId': typeof ShopVendorIdRoute
   '/legal/': typeof LegalIndexRoute
   '/oauth/google-drive/return': typeof OauthGoogleDriveReturnRoute
+  '/order/$id/invoice': typeof OrderIdInvoiceRoute
   '/order/$id/tracking': typeof OrderIdTrackingRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/shop/$vendorId': typeof ShopVendorIdRoute
   '/legal': typeof LegalIndexRoute
   '/oauth/google-drive/return': typeof OauthGoogleDriveReturnRoute
+  '/order/$id/invoice': typeof OrderIdInvoiceRoute
   '/order/$id/tracking': typeof OrderIdTrackingRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/shop/$vendorId': typeof ShopVendorIdRoute
   '/legal/': typeof LegalIndexRoute
   '/oauth/google-drive/return': typeof OauthGoogleDriveReturnRoute
+  '/order/$id/invoice': typeof OrderIdInvoiceRoute
   '/order/$id/tracking': typeof OrderIdTrackingRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/shop/$vendorId'
     | '/legal/'
     | '/oauth/google-drive/return'
+    | '/order/$id/invoice'
     | '/order/$id/tracking'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/shop/$vendorId'
     | '/legal'
     | '/oauth/google-drive/return'
+    | '/order/$id/invoice'
     | '/order/$id/tracking'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/shop/$vendorId'
     | '/legal/'
     | '/oauth/google-drive/return'
+    | '/order/$id/invoice'
     | '/order/$id/tracking'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   ShopVendorIdRoute: typeof ShopVendorIdRoute
   LegalIndexRoute: typeof LegalIndexRoute
   OauthGoogleDriveReturnRoute: typeof OauthGoogleDriveReturnRoute
+  OrderIdInvoiceRoute: typeof OrderIdInvoiceRoute
   OrderIdTrackingRoute: typeof OrderIdTrackingRoute
 }
 
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthGoogleDriveReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/order/$id/invoice': {
+      id: '/order/$id/invoice'
+      path: '/order/$id/invoice'
+      fullPath: '/order/$id/invoice'
+      preLoaderRoute: typeof OrderIdInvoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/order/$id/tracking': {
       id: '/order/$id/tracking'
       path: '/order/$id/tracking'
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShopVendorIdRoute: ShopVendorIdRoute,
   LegalIndexRoute: LegalIndexRoute,
   OauthGoogleDriveReturnRoute: OauthGoogleDriveReturnRoute,
+  OrderIdInvoiceRoute: OrderIdInvoiceRoute,
   OrderIdTrackingRoute: OrderIdTrackingRoute,
 }
 export const routeTree = rootRouteImport
