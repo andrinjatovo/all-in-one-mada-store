@@ -29,6 +29,14 @@ type Order = {
   courier_name?: string | null;
   coop_name?: string | null;
   shipping_mode?: string | null;
+  vendor_acceptance?: string;
+  vendor_refusal_reason?: string | null;
+  updated_at?: string;
+  released_at?: string | null;
+  delivered_at?: string | null;
+  vendor_decided_at?: string | null;
+  variant_label?: string | null;
+  negotiated_offer_id?: string | null;
 };
 
 
@@ -81,13 +89,22 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
     const col = role === "client" ? "client_id" : "vendor_id";
     let req = supabase
       .from("orders")
-      .select("id, product_title, product_image, quantity, total_mga, status, created_at, vendor_released, buyer_confirmed_at, auto_release_at, tracking_status, shipping_address, tracking_code, client_hidden, delivery_fee_mga, delivery_days_min, delivery_days_max, depart_at, depart_city, courier_name, coop_name, shipping_mode" as any)
+      .select("id, product_title, product_image, quantity, total_mga, status, created_at, vendor_released, buyer_confirmed_at, auto_release_at, tracking_status, shipping_address, tracking_code, client_hidden, delivery_fee_mga, delivery_days_min, delivery_days_max, depart_at, depart_city, courier_name, coop_name, shipping_mode, vendor_acceptance, vendor_refusal_reason, updated_at, released_at, delivered_at, buyer_confirmed_at, vendor_decided_at, variant_label, negotiated_offer_id" as any)
 
       .eq(col, userId)
       .order("created_at", { ascending: false });
     if (role === "client") req = req.eq("client_hidden", false);
     const { data } = await req;
-    setOrders((data ?? []) as any);
+    let list = (data ?? []) as any as Order[];
+    if (role === "client") {
+      const limit = Date.now() - 5 * 86_400_000;
+      list = list.filter((o) => {
+        if (!["livre", "annule", "rembourse"].includes(o.status)) return true;
+        const end = o.released_at ?? o.buyer_confirmed_at ?? o.delivered_at ?? o.vendor_decided_at ?? o.updated_at ?? o.created_at;
+        return new Date(end).getTime() > limit;
+      });
+    }
+    setOrders(list);
     setLoading(false);
   }
   useEffect(() => { load(); }, [userId, role]);
@@ -112,6 +129,18 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
     const { error } = await supabase.rpc("vendor_set_tracking" as any, { _order_id: id, _status: status } as any);
     if (error) return toast.error(error.message);
     toast.success("Statut mis à jour");
+    load();
+  }
+
+  async function decide(id: string, accept: boolean) {
+    let reason: string | null = null;
+    if (!accept) {
+      reason = prompt("Motif du refus (le client sera remboursé) :");
+      if (reason === null) return;
+    }
+    const { error } = await supabase.rpc("vendor_decide_order", { _order_id: id, _accept: accept, _reason: reason ?? undefined });
+    if (error) return toast.error(error.message);
+    toast.success(accept ? "Commande acceptée ✅" : "Commande refusée, client remboursé");
     load();
   }
 
@@ -162,8 +191,25 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
               </div>
             </div>
 
+            {o.variant_label && <div className="text-[11px] text-muted-foreground">{o.variant_label}{o.negotiated_offer_id && " · prix négocié"}</div>}
+            {o.vendor_acceptance === "en_attente" && (
+              <div className="mt-2 rounded-lg bg-yellow-500/10 px-2 py-1 text-[11px] font-bold">⏳ En attente d'acceptation vendeur{role === "client" && " — Facture disponible après acceptation de la commande par le vendeur."}</div>
+            )}
+            {o.vendor_acceptance === "refuse" && (
+              <div className="mt-2 rounded-lg bg-destructive/10 px-2 py-1 text-[11px] font-bold text-destructive">❌ Commande refusée{o.vendor_refusal_reason && ` — ${o.vendor_refusal_reason}`} · montant remboursé</div>
+            )}
+            {role === "vendeur" && o.vendor_acceptance === "en_attente" && (
+              <div className="mt-2 flex gap-2">
+                <button onClick={() => decide(o.id, true)} className="rounded-lg bg-mada-green px-3 py-1 text-xs font-bold text-secondary-foreground">✅ Accepter la commande</button>
+                <button onClick={() => decide(o.id, false)} className="rounded-lg border border-destructive px-3 py-1 text-xs font-bold text-destructive">❌ Refuser</button>
+              </div>
+            )}
+            {o.vendor_acceptance === "accepte" && (
+              <Link to="/order/$id/invoice" params={{ id: o.id }} className="mt-2 inline-block rounded-lg border border-border px-3 py-1 text-xs font-bold hover:border-mada-red">🧾 {role === "client" ? "Télécharger la facture" : "Voir la facture"}</Link>
+            )}
+
             {/* Vendor actions */}
-            {role === "vendeur" && (
+            {role === "vendeur" && o.vendor_acceptance !== "en_attente" && o.vendor_acceptance !== "refuse" && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {o.status === "paye" && !o.tracking_status?.match(/shipped|in_transit|nearby|at_depot|delivered/) && (
                   <button onClick={() => setShipOrder(o)} className="rounded-lg bg-mada-green px-3 py-1 text-xs font-bold text-secondary-foreground">
@@ -181,7 +227,7 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
               </div>
             )}
 
-            {role === "vendeur" && (
+            {role === "vendeur" && o.vendor_acceptance === "accepte" && (
               <div className="mt-2 space-y-1">
                 <div className="text-[10px] font-bold uppercase text-muted-foreground">Statut du colis</div>
                 <div className="flex flex-wrap gap-1">
@@ -211,7 +257,7 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
             )}
 
             {/* Client confirm reception */}
-            {role === "client" && !o.vendor_released && (o.status === "expedie" || o.status === "livre" || o.status === "paye") && (
+            {role === "client" && !o.vendor_released && o.vendor_acceptance === "accepte" && (o.status === "expedie" || o.status === "livre" || o.status === "paye") && (
               <button
                 onClick={async () => {
                   const { error } = await supabase.rpc("confirm_delivery" as any, { _order_id: o.id });
