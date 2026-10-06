@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Send, Image as ImageIcon, ArrowLeft } from "lucide-react";
+import { Send, Image as ImageIcon, ArrowLeft, Handshake } from "lucide-react";
+import { NegotiateModal, OfferCard, type Offer } from "./PriceNegotiation";
 
 type Conv = { id: string; client_id: string; vendor_id: string; last_message_at: string };
 type Msg = { id: string; sender_id: string; content: string | null; image_url: string | null; created_at: string };
@@ -12,6 +13,9 @@ export function MessagesPanel({ userId, initialConversationId }: { userId: strin
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [negotiate, setNegotiate] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   async function loadConvs() {
@@ -41,8 +45,20 @@ export function MessagesPanel({ userId, initialConversationId }: { userId: strin
     loadConvs();
   }, [userId]);
 
+  async function loadOffers(convId: string) {
+    const { data } = await supabase.from("price_offers").select("*").eq("conversation_id", convId).order("created_at");
+    const list = (data ?? []) as Offer[];
+    setOffers(list);
+    const ids = [...new Set(list.map((o) => o.product_id))];
+    if (ids.length) {
+      const { data: ps } = await supabase.from("products").select("id,title").in("id", ids);
+      setTitles(Object.fromEntries((ps ?? []).map((p: any) => [p.id, p.title])));
+    }
+  }
+
   useEffect(() => {
     if (!selected) return;
+    loadOffers(selected.id);
     supabase
       .from("messages")
       .select("*")
@@ -54,6 +70,7 @@ export function MessagesPanel({ userId, initialConversationId }: { userId: strin
       .channel(`msg-${selected.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${selected.id}` }, (payload) => {
         setMsgs((prev) => [...prev, payload.new as Msg]);
+        loadOffers(selected.id);
       })
       .subscribe();
     return () => {
@@ -100,6 +117,13 @@ export function MessagesPanel({ userId, initialConversationId }: { userId: strin
           <div className="text-sm font-bold">{labels[selected.client_id === userId ? selected.vendor_id : selected.client_id] ?? "Conversation"}</div>
         </div>
         <div className="flex-1 space-y-2 overflow-y-auto p-4">
+          {offers.filter((o) => o.status !== "remplace").length > 0 && (
+            <div className="space-y-2 pb-2">
+              {offers.filter((o) => o.status !== "remplace").map((o) => (
+                <OfferCard key={o.id} offer={o} userId={userId} title={titles[o.product_id] ?? "Produit"} onChanged={() => loadOffers(selected.id)} />
+              ))}
+            </div>
+          )}
           {msgs.map((m) => (
             <div key={m.id} className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.sender_id === userId ? "bg-mada-red text-primary-foreground rounded-br-sm" : "bg-muted rounded-bl-sm"}`}>
@@ -112,6 +136,11 @@ export function MessagesPanel({ userId, initialConversationId }: { userId: strin
           <div ref={endRef} />
         </div>
         <div className="flex items-center gap-2 border-t border-border p-3">
+          {selected.client_id === userId && (
+            <button onClick={() => setNegotiate(true)} title="Négocier le prix" className="flex items-center gap-1 rounded-xl bg-mada-green/15 p-2 text-xs font-bold text-mada-green">
+              <Handshake className="h-4 w-4" /><span className="hidden sm:inline">Négocier</span>
+            </button>
+          )}
           <label className="cursor-pointer rounded-xl bg-muted p-2 hover:bg-muted/70">
             <ImageIcon className="h-4 w-4" />
             <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && sendImage(e.target.files[0])} />
@@ -127,6 +156,7 @@ export function MessagesPanel({ userId, initialConversationId }: { userId: strin
             <Send className="h-4 w-4" />
           </button>
         </div>
+        {negotiate && <NegotiateModal conversationId={selected.id} vendorId={selected.vendor_id} onClose={() => setNegotiate(false)} onDone={() => loadOffers(selected.id)} />}
       </div>
     );
   }
