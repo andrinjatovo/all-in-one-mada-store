@@ -1,15 +1,12 @@
-# Page « Voir Produit » — Partie 2
+# Catalogue vendeur, IA et achats « Sur commande »
 
-- [x] Auditer les parcours produit, avis, boutique, panier et messagerie existants
-- [x] Ajouter les avis vérifiés, leurs photos, notes et signalements avec accès protégé
-- [x] Distinguer les réactions J’aime et J’adore avec compteurs réels
-- [x] Ajouter galerie complète, miniatures, navigation et agrandissement
-- [x] Afficher prix, promotion limitée, stock, ventes et notes
-- [x] Ajouter partage natif, copie, WhatsApp, Facebook et Messenger
-- [x] Créer la boutique publique avec statistiques et grille de produits
-- [x] Ouvrir directement la conversation avec le vendeur
-- [x] Conserver achat immédiat et panier avec variantes sélectionnées
-- [x] Corriger les erreurs de compilation éventuelles
-- [ ] Tester avec un compte client : variantes, panier, achat, message, avis photo et retour
-- [x] Tester les liens directs sans session, la reprise après connexion et l’absence de débordement
-- [x] Vérifier les journaux d’erreurs finaux
+- [x] Auditer produits, commandes, wallets et fonctions de paiement existants
+- [ ] Base : disponibilité produit, infos sur commande, avance max admin, champs commande (avance, solde protégé, approvisionnement, litige)
+- [ ] Sécurité : interdire la création directe de commandes et la modification des montants hors fonctions sécurisées
+- [ ] Fonctions : acceptation avec avance, approvisionnement, confirmation réception, libération unique, annulation, litige, arbitrage admin
+- [ ] IA : matière, type, sous-catégorie, mots-clés, unité, avertissement si image ambiguë
+- [ ] Formulaire vendeur : disponibilité obligatoire, formulaire sur commande, stock par variante
+- [ ] Client : badges, délais et répartition du paiement (fiche produit, panier, commandes)
+- [ ] Commandes : suivi approvisionnement, confirmation réception, annulation, litige
+- [ ] Admin : avance maximale + litiges
+- [ ] Tests (calcul avance + scénarios base de données)
