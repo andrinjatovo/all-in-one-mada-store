@@ -79,6 +79,7 @@ export type Database = {
           auto_release_days: number
           commission_rate: number
           id: number
+          max_advance_percent: number
           min_shop_age_months: number
           min_stock_per_item: number
           updated_at: string
@@ -89,6 +90,7 @@ export type Database = {
           auto_release_days?: number
           commission_rate?: number
           id?: number
+          max_advance_percent?: number
           min_shop_age_months?: number
           min_stock_per_item?: number
           updated_at?: string
@@ -99,6 +101,7 @@ export type Database = {
           auto_release_days?: number
           commission_rate?: number
           id?: number
+          max_advance_percent?: number
           min_shop_age_months?: number
           min_stock_per_item?: number
           updated_at?: string
@@ -444,6 +447,9 @@ export type Database = {
       orders: {
         Row: {
           address_id: string | null
+          advance_mga: number
+          advance_released_at: string | null
+          advance_released_mga: number
           auto_release_at: string | null
           buyer_confirmed_at: string | null
           client_hidden: boolean
@@ -460,21 +466,33 @@ export type Database = {
           delivery_km: number | null
           depart_at: string | null
           depart_city: string | null
+          dispute_opened_at: string | null
+          dispute_opened_by: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_status: string | null
           eta_at: string | null
+          fulfillment_type: string
           id: string
           in_transit_at: string | null
           negotiated_offer_id: string | null
           normal_unit_price_mga: number | null
           payment_method: string
+          preorder_snapshot: Json | null
           product_id: string
           product_image: string | null
           product_title: string
           quantity: number
+          refunded_at: string | null
+          refunded_mga: number
           released_at: string | null
           shipped_at: string | null
           shipping_address: string | null
           shipping_mode: string | null
           status: Database["public"]["Enums"]["order_status"]
+          supply_eta: string | null
+          supply_history: Json
+          supply_status: string | null
           total_mga: number
           tracking_code: string | null
           tracking_status: string
@@ -490,6 +508,9 @@ export type Database = {
         }
         Insert: {
           address_id?: string | null
+          advance_mga?: number
+          advance_released_at?: string | null
+          advance_released_mga?: number
           auto_release_at?: string | null
           buyer_confirmed_at?: string | null
           client_hidden?: boolean
@@ -506,21 +527,33 @@ export type Database = {
           delivery_km?: number | null
           depart_at?: string | null
           depart_city?: string | null
+          dispute_opened_at?: string | null
+          dispute_opened_by?: string | null
+          dispute_reason?: string | null
+          dispute_resolution?: string | null
+          dispute_status?: string | null
           eta_at?: string | null
+          fulfillment_type?: string
           id?: string
           in_transit_at?: string | null
           negotiated_offer_id?: string | null
           normal_unit_price_mga?: number | null
           payment_method?: string
+          preorder_snapshot?: Json | null
           product_id: string
           product_image?: string | null
           product_title: string
           quantity: number
+          refunded_at?: string | null
+          refunded_mga?: number
           released_at?: string | null
           shipped_at?: string | null
           shipping_address?: string | null
           shipping_mode?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          supply_eta?: string | null
+          supply_history?: Json
+          supply_status?: string | null
           total_mga: number
           tracking_code?: string | null
           tracking_status?: string
@@ -536,6 +569,9 @@ export type Database = {
         }
         Update: {
           address_id?: string | null
+          advance_mga?: number
+          advance_released_at?: string | null
+          advance_released_mga?: number
           auto_release_at?: string | null
           buyer_confirmed_at?: string | null
           client_hidden?: boolean
@@ -552,21 +588,33 @@ export type Database = {
           delivery_km?: number | null
           depart_at?: string | null
           depart_city?: string | null
+          dispute_opened_at?: string | null
+          dispute_opened_by?: string | null
+          dispute_reason?: string | null
+          dispute_resolution?: string | null
+          dispute_status?: string | null
           eta_at?: string | null
+          fulfillment_type?: string
           id?: string
           in_transit_at?: string | null
           negotiated_offer_id?: string | null
           normal_unit_price_mga?: number | null
           payment_method?: string
+          preorder_snapshot?: Json | null
           product_id?: string
           product_image?: string | null
           product_title?: string
           quantity?: number
+          refunded_at?: string | null
+          refunded_mga?: number
           released_at?: string | null
           shipped_at?: string | null
           shipping_address?: string | null
           shipping_mode?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          supply_eta?: string | null
+          supply_history?: Json
+          supply_status?: string | null
           total_mga?: number
           tracking_code?: string | null
           tracking_status?: string
@@ -809,6 +857,9 @@ export type Database = {
       }
       products: {
         Row: {
+          advance_percent: number
+          attributes: Json
+          availability: string
           category_id: string | null
           click_count: number
           created_at: string
@@ -817,6 +868,7 @@ export type Database = {
           id: string
           images: string[]
           is_active: boolean
+          preorder: Json
           price_mga: number
           price_usdt: number | null
           promo_until: string | null
@@ -833,6 +885,9 @@ export type Database = {
           view_count: number
         }
         Insert: {
+          advance_percent?: number
+          attributes?: Json
+          availability?: string
           category_id?: string | null
           click_count?: number
           created_at?: string
@@ -841,6 +896,7 @@ export type Database = {
           id?: string
           images?: string[]
           is_active?: boolean
+          preorder?: Json
           price_mga: number
           price_usdt?: number | null
           promo_until?: string | null
@@ -857,6 +913,9 @@ export type Database = {
           view_count?: number
         }
         Update: {
+          advance_percent?: number
+          attributes?: Json
+          availability?: string
           category_id?: string | null
           click_count?: number
           created_at?: string
@@ -865,6 +924,7 @@ export type Database = {
           id?: string
           images?: string[]
           is_active?: boolean
+          preorder?: Json
           price_mga?: number
           price_usdt?: number | null
           promo_until?: string | null
@@ -1347,12 +1407,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _refund_order: {
+        Args: { _clawback: number; _order_id: string; _reason: string }
+        Returns: number
+      }
       _release_order: {
         Args: { _order_id: string; _reason: string }
         Returns: undefined
       }
       admin_release_order: {
         Args: { _note?: string; _order_id: string }
+        Returns: undefined
+      }
+      admin_resolve_order_dispute: {
+        Args: {
+          _clawback?: number
+          _decision: string
+          _note?: string
+          _order_id: string
+        }
         Returns: undefined
       }
       admin_review_vendor_application: {
@@ -1368,6 +1441,7 @@ export type Database = {
         Args: { _amount: number; _client_id: string; _note?: string }
         Returns: undefined
       }
+      admin_set_max_advance: { Args: { _pct: number }; Returns: undefined }
       admin_transfer_funds: {
         Args: { _amount: number; _direction: string }
         Returns: undefined
@@ -1390,6 +1464,10 @@ export type Database = {
         Returns: undefined
       }
       auto_release_orders: { Args: never; Returns: number }
+      client_cancel_order: {
+        Args: { _order_id: string; _reason?: string }
+        Returns: number
+      }
       compute_shipping_quote: {
         Args: { _lat: number; _lng: number; _vendor_id: string }
         Returns: Json
@@ -1441,6 +1519,10 @@ export type Database = {
       }
       increment_product_view: {
         Args: { _product_id: string }
+        Returns: undefined
+      }
+      open_order_dispute: {
+        Args: { _order_id: string; _reason: string }
         Returns: undefined
       }
       pay_price_offer: {
@@ -1522,6 +1604,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      vendor_cancel_preorder: {
+        Args: { _order_id: string; _reason: string }
+        Returns: number
+      }
       vendor_decide_order: {
         Args: { _accept: boolean; _order_id: string; _reason?: string }
         Returns: undefined
@@ -1583,6 +1669,15 @@ export type Database = {
           _depart_city?: string
           _mode?: string
           _order_id: string
+        }
+        Returns: undefined
+      }
+      vendor_update_supply: {
+        Args: {
+          _eta?: string
+          _note?: string
+          _order_id: string
+          _status?: string
         }
         Returns: undefined
       }
