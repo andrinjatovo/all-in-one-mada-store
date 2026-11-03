@@ -12,6 +12,9 @@ export type ProductInfo = {
   promo_until: string | null;
   variants: any;
   images: string[] | null;
+  availability?: string;
+  preorder?: any;
+  advance_percent?: number;
 };
 
 type Variant = {

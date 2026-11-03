@@ -10,6 +10,8 @@ import { ShippingQuoteCard, type Quote } from "@/components/madastore/ShippingQu
 import { BackButton } from "@/components/madastore/BackButton";
 import { CartItemEditor, type ProductInfo } from "@/components/madastore/CartItemEditor";
 import type { AddressRow } from "@/components/madastore/AddressForm";
+import { useMarketplaceRules } from "@/components/madastore/ProductAvailabilityEditor";
+import { computePreorderSplit, formatDateFr, totalPreorderDays } from "@/lib/preorder";
 import {
   CartItem,
   cartTotal,
@@ -55,6 +57,7 @@ function CartPage() {
   const [couponId, setCouponId] = useState<string | null>(null);
   const [infos, setInfos] = useState<Record<string, ProductInfo>>({});
   const [editing, setEditing] = useState<number | null>(null);
+  const rules = useMarketplaceRules();
 
   const reload = useCallback(() => setItems(getCart()), []);
 
@@ -99,7 +102,7 @@ function CartPage() {
     if (ids.length === 0) return setInfos({});
     supabase
       .from("products")
-      .select("id,category_id,stock,price_mga,discount_percent,promo_until,variants,images")
+      .select("id,category_id,stock,price_mga,discount_percent,promo_until,variants,images,availability,preorder,advance_percent")
       .in("id", ids)
       .then((r) => {
         const map: Record<string, ProductInfo> = {};
@@ -129,6 +132,19 @@ function CartPage() {
       : 0;
 
   const total = Math.max(0, subtotal - discount) + shipping;
+  const preorderLines = selected
+    .map((it) => ({ it, info: infos[it.product_id] }))
+    .filter((x) => x.info?.availability === "sur_commande")
+    .map(({ it, info }) => ({
+      it,
+      info,
+      split: computePreorderSplit({
+        itemsTotal: lineTotal(it),
+        commissionRate: rules.commissionRate,
+        advancePercent: Number(info.advance_percent ?? 0),
+        maxAdvancePercent: rules.maxAdvancePercent,
+      }),
+    }));
   const canPay = selected.length > 0 && !!address && vendors.every((v) => !!quotes[v]);
 
   function useCoupon(c: Coupon) {
@@ -277,6 +293,11 @@ function CartPage() {
                         </span>
                       )}
                     </div>
+                    {info?.availability === "sur_commande" && (
+                      <div className="mt-0.5 inline-block rounded-full bg-mada-red/15 px-2 py-0.5 text-[10px] font-black text-mada-red">
+                        🚢 Sur commande · ≈ {totalPreorderDays(info.preorder)} j
+                      </div>
+                    )}
                     {info && info.stock < it.qty && (
                       <div className="mt-0.5 text-[10px] font-bold text-destructive">
                         Stock insuffisant (reste {info.stock})
@@ -387,6 +408,21 @@ function CartPage() {
               )}
             </div>
 
+            {preorderLines.length > 0 && (
+              <div className="space-y-1 rounded-2xl border border-mada-red/40 bg-mada-red/5 p-3 text-[11px]">
+                <div className="text-sm font-black">🚢 Produits sur commande — paiement protégé</div>
+                {preorderLines.map(({ it, split, info }) => (
+                  <div key={`${it.product_id}-${it.color}-${it.size}`} className="rounded-lg bg-card p-2">
+                    <div className="font-bold">{it.title}</div>
+                    <div className="flex justify-between"><span>Payé maintenant</span><strong>{formatMGA(split.total)}</strong></div>
+                    <div className="flex justify-between"><span>Avance vendeur à l'acceptation ({split.percent} %)</span><strong>{formatMGA(split.advance)}</strong></div>
+                    <div className="flex justify-between"><span>Conservé jusqu'à votre confirmation de réception</span><strong>{formatMGA(split.protectedAmount)}</strong></div>
+                    <div className="text-muted-foreground">Disponibilité estimée : {formatDateFr(info.preorder?.available_at)} · ≈ {totalPreorderDays(info.preorder)} jours</div>
+                  </div>
+                ))}
+                <p className="text-muted-foreground">Montants hors livraison et hors coupon ; le calcul définitif est fait au paiement.</p>
+              </div>
+            )}
             <AddressSelector userId={user.id} value={address?.id ?? null} onChange={setAddress} />
             {vendors.map((v) => (
               <ShippingQuoteCard

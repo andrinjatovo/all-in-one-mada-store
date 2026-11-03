@@ -13,7 +13,60 @@ import {
   setStoredProvider,
   type StorageProvider,
 } from "@/lib/drive-upload";
-import { analyzeProductWithAI } from "@/lib/api/product-ai.functions";
+import { analyzeProductWithAI, type ProductAISuggestion } from "@/lib/api/product-ai.functions";
+import { ProductAvailabilityEditor, useMarketplaceRules, type AvailabilityValue } from "./ProductAvailabilityEditor";
+import { validatePreorder } from "@/lib/preorder";
+
+type Attributes = { product_type?: string; material?: string; subcategory?: string; keywords?: string[] };
+
+function emptyAvailability(): AvailabilityValue {
+  return { availability: null, preorder: {}, advance_percent: 0 };
+}
+
+/** Somme des stocks par variante si renseignés, sinon null (stock global). */
+function variantStockTotal(vars: { stock?: number }[]): number | null {
+  const withStock = vars.filter((v) => typeof v.stock === "number" && !Number.isNaN(v.stock));
+  if (withStock.length === 0) return null;
+  return withStock.reduce((s, v) => s + Math.max(0, Number(v.stock) || 0), 0);
+}
+
+function minPositive(list: number[]): number {
+  const v = list.filter((n) => n > 0);
+  return v.length ? Math.min(...v) : 0;
+}
+
+function availabilityError(a: AvailabilityValue, stock: number, maxAdvance: number): string | null {
+  if (!a.availability) return "Choisissez la disponibilité du produit (Disponible à Madagascar ou Sur commande)";
+  if (a.availability === "disponible_localement" && stock <= 0) return "Indiquez le stock réellement disponible à Madagascar";
+  if (a.availability === "sur_commande") {
+    if (stock <= 0) return "Indiquez la quantité maximale que vous pouvez fournir sur commande (stock)";
+    return validatePreorder(a.preorder, a.advance_percent, maxAdvance);
+  }
+  return null;
+}
+
+function AttributesEditor({ value, onChange }: { value: Attributes; onChange: (v: Attributes) => void }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      <label className="text-[11px] font-bold">Type de produit
+        <input value={value.product_type ?? ""} onChange={(e) => onChange({ ...value, product_type: e.target.value.slice(0, 60) })} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm" />
+      </label>
+      <label className="text-[11px] font-bold">Matière
+        <input value={value.material ?? ""} onChange={(e) => onChange({ ...value, material: e.target.value.slice(0, 60) })} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm" />
+      </label>
+      <label className="text-[11px] font-bold">Sous-catégorie
+        <input value={value.subcategory ?? ""} onChange={(e) => onChange({ ...value, subcategory: e.target.value.slice(0, 60) })} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm" />
+      </label>
+      <label className="text-[11px] font-bold sm:col-span-3">Mots-clés de recherche (séparés par des virgules)
+        <input
+          value={(value.keywords ?? []).join(", ")}
+          onChange={(e) => onChange({ ...value, keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean).slice(0, 10) })}
+          className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+        />
+      </label>
+    </div>
+  );
+}
 
 
 
@@ -26,7 +79,7 @@ const COLOR_PRESETS = ["Noir", "Blanc", "Rouge", "Bleu", "Vert", "Jaune", "Rose"
 const SIZE_PRESETS = ["XS", "S", "M", "L", "XL", "XXL"];
 const SHOE_PRESETS = ["36", "37", "38", "39", "40", "41", "42", "43", "44", "45"];
 const UNIT_PRESETS = [
-  "unité", "pièce", "paire", "boîte", "plaquette", "sachet", "lot",
+  "unité", "pièce", "paire", "boîte", "plaquette", "sachet", "lot", "paquet",
   "g", "kg", "mL", "L",
   "cm", "m", "m²", "m³", "pouce",
   "Ah", "W", "V",
@@ -51,7 +104,7 @@ function validateDesc(d: string): string | null {
   return null;
 }
 
-type Variant = { price_mga: number; colors: string[]; sizes: string[]; units: string[]; custom?: string };
+type Variant = { price_mga: number; colors: string[]; sizes: string[]; units: string[]; custom?: string; stock?: number };
 type ImageEntry = { file: File; preview: string; variant: Variant };
 
 type Product = {
@@ -66,6 +119,10 @@ type Product = {
   video_url: string | null;
   variants: any;
   unit: string | null;
+  availability?: string;
+  preorder?: any;
+  advance_percent?: number;
+  attributes?: any;
 };
 type Category = { id: string; name: string };
 
@@ -89,10 +146,22 @@ function VariantEditor({
         <div className="text-xs font-bold">Variante #{index + 1}</div>
         {onRemove && <button onClick={onRemove} className="rounded p-1 text-destructive hover:bg-destructive/10"><X className="h-3 w-3" /></button>}
       </div>
-      <div>
-        <label className="text-[10px] font-bold uppercase">Prix (MGA) *</label>
-        <input type="number" value={variant.price_mga || ""} onChange={(ev) => onChange({ ...variant, price_mga: Number(ev.target.value) })} placeholder="ex. 45000" className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm" />
-        {variant.price_mga > 0 && <div className="mt-1 text-[10px] text-muted-foreground">≈ {formatUSDT(variant.price_mga)}</div>}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] font-bold uppercase">Prix (MGA) *</label>
+          <input type="number" value={variant.price_mga || ""} onChange={(ev) => onChange({ ...variant, price_mga: Number(ev.target.value) })} placeholder="ex. 45000" className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm" />
+          {variant.price_mga > 0 && <div className="mt-1 text-[10px] text-muted-foreground">≈ {formatUSDT(variant.price_mga)}</div>}
+        </div>
+        <div>
+          <label className="text-[10px] font-bold uppercase">Stock de la variante</label>
+          <input
+            type="number" min={0}
+            value={variant.stock ?? ""}
+            onChange={(ev) => onChange({ ...variant, stock: ev.target.value === "" ? undefined : Math.max(0, Number(ev.target.value)) })}
+            placeholder="facultatif"
+            className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm"
+          />
+        </div>
       </div>
       <div>
         <div className="text-[10px] font-bold uppercase mb-1">Couleurs</div>
@@ -147,6 +216,12 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
   const [drive, setDrive] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
   const [driveBusy, setDriveBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiResult, setAiResult] = useState<ProductAISuggestion | null>(null);
+  const [avail, setAvail] = useState<AvailabilityValue>(emptyAvailability());
+  const [attrs, setAttrs] = useState<Attributes>({});
+  const rules = useMarketplaceRules();
+  const variantTotal = variantStockTotal(entries.map((e) => e.variant));
+  const effectiveStock = variantTotal ?? (Number(stock) || 0);
 
   useEffect(() => {
     setProvider(getStoredProvider());
@@ -222,25 +297,28 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
         },
       });
       if (!suggestion) throw new Error(error ?? "Analyse impossible");
+      setAiResult(suggestion);
       setTitle(suggestion.title.slice(0, TITLE_MAX));
       setDesc(suggestion.description.slice(0, DESC_MAX));
       if (suggestion.category_id) setCategory(suggestion.category_id);
-      setEntries((list) =>
-        list.map((e, i) =>
-          i === 0
-            ? {
-                ...e,
-                variant: {
-                  ...e.variant,
-                  colors: suggestion.colors?.length ? suggestion.colors : e.variant.colors,
-                  sizes: suggestion.sizes?.length ? suggestion.sizes : e.variant.sizes,
-                  units: suggestion.units?.length ? suggestion.units : e.variant.units,
-                },
-              }
-            : e,
-        ),
+      setAttrs((a) => ({
+        product_type: suggestion.product_type || a.product_type,
+        material: suggestion.material || a.material,
+        subcategory: suggestion.subcategory || a.subcategory,
+        keywords: suggestion.keywords?.length ? suggestion.keywords : a.keywords,
+      }));
+      // Seule l'unité suggérée est préremplie ; couleurs/tailles restent à confirmer par le vendeur.
+      if (suggestion.suggested_unit) {
+        setEntries((list) =>
+          list.map((e, i) =>
+            i === 0 && e.variant.units.length === 0 ? { ...e, variant: { ...e.variant, units: [suggestion.suggested_unit] } } : e,
+          ),
+        );
+      }
+      toast.success(
+        suggestion.confidence === "faible" ? "Analyse terminée avec des doutes : vérifiez la fiche ⚠️" : "Fiche préremplie par l'IA ✨ — vérifiez avant de publier",
+        { id: "ai" },
       );
-      toast.success("Fiche produit générée par l'IA ✨", { id: "ai" });
     } catch (e: any) {
       toast.error(e?.message ?? "Erreur IA", { id: "ai" });
     } finally {
@@ -305,14 +383,24 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
   }
   function removeEntry(i: number) { setEntries((e) => e.filter((_, idx) => idx !== i)); }
 
+  function applySuggested(key: "colors" | "sizes") {
+    const vals = aiResult?.[key] ?? [];
+    if (!vals.length) return;
+    setEntries((list) => list.map((e, i) => (i === 0 ? { ...e, variant: { ...e.variant, [key]: Array.from(new Set([...e.variant[key], ...vals])) } } : e)));
+    toast.success(key === "colors" ? "Couleurs ajoutées à la variante #1" : "Tailles ajoutées à la variante #1");
+  }
+
   async function create() {
     const tErr = validateTitle(title);
     const dErr = validateDesc(desc);
     if (tErr) return toast.error(tErr);
     if (dErr) return toast.error(dErr);
+    if (!category) return toast.error("Choisissez une catégorie");
     if (entries.length === 0) return toast.error("Au moins une image");
     if (entries.some((e) => !e.variant.price_mga || e.variant.price_mga <= 0))
       return toast.error("Prix obligatoire pour chaque image/variante");
+    const aErr = availabilityError(avail, effectiveStock, rules.maxAdvancePercent);
+    if (aErr) return toast.error(aErr);
 
     setSaving(true);
     try {
@@ -352,17 +440,22 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
         category_id: category || null,
         title, description: desc,
         price_mga: minPrice,
-        stock: Number(stock) || 0,
+        stock: effectiveStock,
         images: urls,
         video_url,
         variants,
         unit: firstUnit,
+        availability: avail.availability,
+        preorder: avail.availability === "sur_commande" ? avail.preorder : {},
+        advance_percent: avail.availability === "sur_commande" ? avail.advance_percent : 0,
+        attributes: attrs,
       } as any);
-      if (error) throw new Error(humanizeDbError(error));
+      if (error) throw new Error(error.message?.startsWith("Sur commande") || error.message?.startsWith("Avance") ? error.message : humanizeDbError(error));
       logStep("publication terminée ✅");
       toast.success("Produit publié ✅", { id: "pub" });
       setShowForm(false);
       setTitle(""); setDesc(""); setStock("1"); setEntries([]); setVideo(null);
+      setAvail(emptyAvailability()); setAttrs({}); setAiResult(null);
       load();
     } catch (e: any) {
       console.error("[publish] échec", e);
@@ -420,11 +513,30 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <input type="number" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Stock" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" />
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-              {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <label className="text-[11px] font-bold">Stock total
+              <input
+                type="number" min={0}
+                value={variantTotal ?? stock}
+                disabled={variantTotal !== null}
+                onChange={(e) => setStock(e.target.value)}
+                placeholder="Stock"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-70"
+              />
+              {variantTotal !== null && <span className="text-[10px] font-normal text-muted-foreground">Somme des stocks par variante</span>}
+            </label>
+            <label className="text-[11px] font-bold">Catégorie
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
           </div>
+          <AttributesEditor value={attrs} onChange={setAttrs} />
+          <ProductAvailabilityEditor
+            value={avail}
+            onChange={setAvail}
+            rules={rules}
+            examplePrice={minPositive(entries.map((e) => e.variant.price_mga))}
+          />
 
           <div className="rounded-xl border border-border bg-background p-3">
             <div className="text-xs font-bold">Stockage des images</div>
@@ -487,6 +599,40 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
             >
               <Sparkles className="h-4 w-4" /> {aiBusy ? "Analyse…" : "Analyser avec IA"}
             </button>
+            {aiResult && (
+              <div className="mt-2 space-y-2 rounded-xl border border-mada-green/40 bg-mada-green/5 p-3 text-[11px]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-black">✨ Suggestions IA — à vérifier</span>
+                  <span className={`rounded-full px-2 py-0.5 font-bold ${aiResult.confidence === "haute" ? "bg-mada-green/20 text-mada-green" : aiResult.confidence === "moyenne" ? "bg-muted" : "bg-destructive/15 text-destructive"}`}>
+                    Confiance : {aiResult.confidence}
+                  </span>
+                </div>
+                {aiResult.warnings.length > 0 && (
+                  <ul className="list-disc space-y-0.5 rounded-lg bg-destructive/10 py-1.5 pl-5 pr-2 text-destructive">
+                    {aiResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                )}
+                <div className="text-muted-foreground">
+                  Unité suggérée : <strong className="text-foreground">{aiResult.suggested_unit || "—"}</strong>
+                  {aiResult.category_name && <> · Catégorie : <strong className="text-foreground">{aiResult.category_name}</strong></>}
+                </div>
+                {aiResult.colors.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span>Couleurs visibles :</span>
+                    {aiResult.colors.map((c) => <span key={c} className="rounded-full border border-border px-2 py-0.5">{c}</span>)}
+                    <button type="button" onClick={() => applySuggested("colors")} className="rounded-full bg-mada-red px-2 py-0.5 font-bold text-primary-foreground">Appliquer</button>
+                  </div>
+                )}
+                {aiResult.sizes.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span>Tailles possibles :</span>
+                    {aiResult.sizes.map((s) => <span key={s} className="rounded-full border border-border px-2 py-0.5">{s}</span>)}
+                    <button type="button" onClick={() => applySuggested("sizes")} className="rounded-full bg-mada-red px-2 py-0.5 font-bold text-primary-foreground">Appliquer</button>
+                  </div>
+                )}
+                <p className="text-muted-foreground">Le produit n'est jamais publié automatiquement : corrigez si besoin puis cliquez sur « Publier le produit ».</p>
+              </div>
+            )}
           </div>
 
 
@@ -563,6 +709,9 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
                   )}
                   <div className="text-[10px] text-muted-foreground">≈ {formatUSDT(p.price_mga)}</div>
                   <div className="text-[10px] text-muted-foreground">Stock: {p.stock} {p.unit || "unité"}</div>
+                  <div className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-black ${p.availability === "sur_commande" ? "bg-mada-red/15 text-mada-red" : "bg-mada-green/15 text-mada-green"}`}>
+                    {p.availability === "sur_commande" ? "🚢 Sur commande" : "🇲🇬 Disponible à Madagascar"}
+                  </div>
                   <div className="flex items-center gap-2 pt-1 text-[10px] text-muted-foreground">
                     <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> {eng.likes}</span>
                     <span className="inline-flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {eng.comments}</span>
@@ -628,11 +777,21 @@ function EditProductModal({
         sizes: Array.isArray(found?.sizes) ? found.sizes : [],
         units: Array.isArray(found?.units) ? found.units : (product.unit ? [product.unit] : []),
         custom: found?.custom || "",
+        stock: typeof found?.stock === "number" ? found.stock : undefined,
       };
     });
     return list;
   });
   const [saving, setSaving] = useState(false);
+  const [avail, setAvail] = useState<AvailabilityValue>({
+    availability: (product.availability as AvailabilityValue["availability"]) ?? "disponible_localement",
+    preorder: product.preorder && typeof product.preorder === "object" ? product.preorder : {},
+    advance_percent: Number(product.advance_percent ?? 0),
+  });
+  const [attrs, setAttrs] = useState<Attributes>(product.attributes && typeof product.attributes === "object" ? product.attributes : {});
+  const rules = useMarketplaceRules();
+  const variantTotal = variantStockTotal(variants);
+  const effectiveStock = variantTotal ?? (Number(stock) || 0);
 
   const titleErr = validateTitle(title);
   const descErr = validateDesc(desc);
@@ -669,6 +828,8 @@ function EditProductModal({
     if (images.length + newFiles.length === 0) return toast.error("Au moins une image");
     if (variants.some((v) => !v.price_mga || v.price_mga <= 0))
       return toast.error("Prix obligatoire pour chaque variante");
+    const aErr = availabilityError(avail, effectiveStock, rules.maxAdvancePercent);
+    if (aErr) return toast.error(aErr);
 
     setSaving(true);
     try {
@@ -690,14 +851,18 @@ function EditProductModal({
 
       const { error } = await supabase.from("products").update({
         title, description: desc,
-        stock: Number(stock) || 0,
+        stock: effectiveStock,
         unit: firstUnit,
         category_id: category || null,
         price_mga: minPrice,
         images: finalImages,
         variants: finalVariants,
+        availability: avail.availability,
+        preorder: avail.availability === "sur_commande" ? avail.preorder : {},
+        advance_percent: avail.availability === "sur_commande" ? avail.advance_percent : 0,
+        attributes: attrs,
       } as any).eq("id", product.id);
-      if (error) throw new Error(humanizeDbError(error));
+      if (error) throw new Error(error.message?.startsWith("Sur commande") || error.message?.startsWith("Avance") ? error.message : humanizeDbError(error));
       toast.success("Produit mis à jour ✅", { id: "edit" });
       onSaved();
     } catch (e: any) {
@@ -730,7 +895,8 @@ function EditProductModal({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs">Stock
-              <input type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              <input type="number" min={0} value={variantTotal ?? stock} disabled={variantTotal !== null} onChange={(e) => setStock(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-70" />
+              {variantTotal !== null && <span className="text-[10px] text-muted-foreground">Somme des stocks par variante</span>}
             </label>
             <label className="text-xs">Catégorie
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
@@ -739,6 +905,9 @@ function EditProductModal({
               </select>
             </label>
           </div>
+          <AttributesEditor value={attrs} onChange={setAttrs} />
+          <ProductAvailabilityEditor value={avail} onChange={setAvail} rules={rules} examplePrice={minPositive(variants.map((v) => v.price_mga))} />
+          <p className="text-[10px] text-muted-foreground">Les changements de disponibilité s'appliquent aux nouvelles commandes ; les commandes déjà payées gardent leurs conditions.</p>
 
           <div>
             <div className="text-xs font-bold mb-1">Images ({totalImgs}/{MAX_IMAGES})</div>

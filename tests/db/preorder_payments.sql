@@ -12,7 +12,6 @@ DECLARE
   _r public.orders;
   _vb0 bigint; _vb1 bigint; _vb2 bigint; _cb0 bigint; _cb1 bigint; _n int;
   _log text := '';
-  PROCEDURE_ok boolean;
 BEGIN
   DELETE FROM public.coupons WHERE user_id = _client; -- coupons hors scénario (rollback final)
   UPDATE public.wallets SET balance_mga = 1000000 WHERE user_id = _client;
