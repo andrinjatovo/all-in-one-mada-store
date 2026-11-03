@@ -14,6 +14,8 @@ import { ProductGallery } from "@/components/madastore/ProductGallery";
 import { ProductShare } from "@/components/madastore/ProductShare";
 import { ProductReviews, Stars } from "@/components/madastore/ProductReviews";
 import { Button } from "@/components/ui/button";
+import { useMarketplaceRules } from "@/components/madastore/ProductAvailabilityEditor";
+import { computePreorderSplit, formatDateFr, totalPreorderDays, type PreorderInfo } from "@/lib/preorder";
 
 export const Route = createFileRoute("/product/$id")({
   head: () => ({ meta: [
@@ -27,7 +29,7 @@ export const Route = createFileRoute("/product/$id")({
   component: ProductPage,
 });
 
-type Variant = { image_index: number; price_mga: number; colors: string[]; sizes: string[]; units?: string[]; custom?: string };
+type Variant = { image_index: number; price_mga: number; colors: string[]; sizes: string[]; units?: string[]; custom?: string; stock?: number };
 type Comment = { id: string; user_id: string; author_name: string | null; content: string; created_at: string };
 
 function usePromoRemaining(until: string | null | undefined, active: boolean) {
@@ -133,6 +135,18 @@ function ProductPage() {
   const discounted = qty >= 10;
   const effUnit = discounted ? Math.floor(displayPrice * 0.98) : displayPrice;
   const promoRemaining = usePromoRemaining(p?.promo_until, promoPct > 0);
+  const rules = useMarketplaceRules();
+  const isPreorder = p?.availability === "sur_commande";
+  const preorder: PreorderInfo = (p?.preorder && typeof p.preorder === "object" ? p.preorder : {}) as PreorderInfo;
+  const variantStock = typeof currentVariant?.stock === "number" ? currentVariant.stock : null;
+  const maxQty = Math.max(0, Math.min(p?.stock ?? 0, variantStock ?? Number.POSITIVE_INFINITY));
+  const split = computePreorderSplit({
+    itemsTotal: effUnit * qty,
+    deliveryFee: popup === "buy" ? quote?.fee_mga ?? 0 : 0,
+    commissionRate: rules.commissionRate,
+    advancePercent: Number(p?.advance_percent ?? 0),
+    maxAdvancePercent: rules.maxAdvancePercent,
+  });
 
 
   function openPopup(mode: "cart" | "buy") {
@@ -273,7 +287,19 @@ function ProductPage() {
           <h2 className="mt-2 text-lg font-bold">{p.title}</h2>
           {promoPct > 0 && p.promo_until && <div className="inline-flex items-center gap-2 rounded-md border border-mada-red/40 bg-mada-red/10 px-3 py-2 text-xs font-bold text-mada-red"><Clock3 className="h-4 w-4" /> Promotion limitée · {promoRemaining}</div>}
           <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{p.description}</p>
-          <div className="flex flex-wrap gap-3 text-xs"><span>Stock disponible : <strong>{p.stock}</strong></span><span className="inline-flex items-center gap-1"><PackageCheck className="h-4 w-4 text-mada-green" /> <strong>{p.sold_count ?? 0}</strong> vendus</span><Stars value={Number(p.rating_avg ?? 0)} count={p.rating_count ?? 0} /></div>
+          <div className="flex flex-wrap gap-3 text-xs"><span>{isPreorder ? "Quantité disponible à la commande" : "Stock disponible"} : <strong>{p.stock}</strong>{variantStock !== null && <> (cette variante : <strong>{variantStock}</strong>)</>}</span><span className="inline-flex items-center gap-1"><PackageCheck className="h-4 w-4 text-mada-green" /> <strong>{p.sold_count ?? 0}</strong> vendus</span><Stars value={Number(p.rating_avg ?? 0)} count={p.rating_count ?? 0} /></div>
+          {isPreorder ? (
+            <div className="space-y-1 rounded-md border border-mada-red/40 bg-mada-red/5 p-3 text-xs">
+              <div className="inline-block rounded-full bg-mada-red px-2 py-0.5 text-[10px] font-black text-primary-foreground">🚢 Produit sur commande</div>
+              <div>Approvisionnement : <strong>{[preorder.origin_city, preorder.origin_country].filter(Boolean).join(", ") || "—"}</strong></div>
+              <div>Disponibilité estimée : <strong>{formatDateFr(preorder.available_at)}</strong> · délai total estimé : <strong>≈ {totalPreorderDays(preorder)} jours</strong> (arrivée {preorder.supply_days ?? "?"} j + préparation {preorder.prep_days ?? "?"} j + livraison {preorder.delivery_days ?? "?"} j)</div>
+              <div className="text-muted-foreground">Vous payez le total à la commande. Seule une avance de {Math.min(Number(p.advance_percent ?? 0), rules.maxAdvancePercent)} % est versée au vendeur lorsqu'il accepte ; le reste est conservé par la plateforme jusqu'à votre confirmation de réception.</div>
+              {preorder.conditions && <div className="text-muted-foreground">Conditions : {preorder.conditions}</div>}
+              <div className="text-[10px] text-muted-foreground">Les délais sont des estimations du vendeur, sans garantie de date.</div>
+            </div>
+          ) : p.stock > 0 ? (
+            <div className="inline-block rounded-full bg-mada-green/15 px-2 py-0.5 text-[10px] font-black text-mada-green">🇲🇬 Disponible à Madagascar</div>
+          ) : null}
         </div>
 
         {/* Reactions row */}
@@ -340,7 +366,7 @@ function ProductPage() {
               Panier
             </Button>
             <Button onClick={() => openPopup("buy")} disabled={p.stock === 0} className="h-12 flex-[2] font-black shadow-glow-red">
-              <ShoppingBag className="h-4 w-4" /> {p.stock === 0 ? "Rupture" : "Acheter"}
+              <ShoppingBag className="h-4 w-4" /> {p.stock === 0 ? "Rupture" : isPreorder ? "Commander" : "Acheter"}
             </Button>
           </div>
         </div>
@@ -359,7 +385,7 @@ function ProductPage() {
                 {discounted && (
                   <div className="text-[10px] text-mada-green font-bold">-2% appliqué (x{qty})</div>
                 )}
-                <div className="text-xs text-muted-foreground">Stock: {p.stock}</div>
+                <div className="text-xs text-muted-foreground">{isPreorder ? "Sur commande · max" : "Stock"} : {maxQty}</div>
               </div>
               <button onClick={() => setPopup(null)} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
@@ -403,7 +429,7 @@ function ProductPage() {
               <div className="flex items-center gap-2">
                 <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-border"><Minus className="h-4 w-4" /></button>
                 <span className="w-10 text-center font-black">{qty}</span>
-                <button onClick={() => setQty((q) => Math.min(p.stock, q + 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-border"><Plus className="h-4 w-4" /></button>
+                <button onClick={() => setQty((q) => Math.max(1, Math.min(maxQty, q + 1)))} className="grid h-9 w-9 place-items-center rounded-lg border border-border"><Plus className="h-4 w-4" /></button>
                 <span className="ml-2 text-xs text-muted-foreground">10+ = -2%</span>
               </div>
             </div>
@@ -433,6 +459,15 @@ function ProductPage() {
               <span className="text-sm font-bold">Total</span>
               <span className="text-xl font-black text-mada-red">{formatMGA(effUnit * qty + (popup === "buy" ? (quote?.fee_mga ?? 0) : 0))}</span>
             </div>
+            {isPreorder && (
+              <div className="space-y-0.5 rounded-lg border border-mada-red/30 bg-mada-red/5 p-2 text-[11px]">
+                <div className="font-black">🚢 Produit sur commande — paiement protégé</div>
+                <div className="flex justify-between"><span>Total débité de votre wallet</span><strong>{formatMGA(split.total)}</strong></div>
+                <div className="flex justify-between"><span>Versé au vendeur quand il accepte (avance {split.percent} %)</span><strong>{formatMGA(split.advance)}</strong></div>
+                <div className="flex justify-between"><span>Conservé par la plateforme</span><strong>{formatMGA(split.protectedAmount)}</strong></div>
+                <div className="text-muted-foreground">Ce solde n'est versé au vendeur qu'après votre confirmation de réception (ou décision de l'administration en cas de litige). Délai estimé ≈ {totalPreorderDays(preorder)} jours, disponibilité prévue le {formatDateFr(preorder.available_at)}.</div>
+              </div>
+            )}
 
             {popup === "cart" ? (
               <button onClick={confirmAddToCart} className="w-full rounded-xl bg-mada-green py-3 text-sm font-black text-secondary-foreground">
