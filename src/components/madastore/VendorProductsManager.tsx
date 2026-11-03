@@ -30,6 +30,11 @@ function variantStockTotal(vars: { stock?: number }[]): number | null {
   return withStock.reduce((s, v) => s + Math.max(0, Number(v.stock) || 0), 0);
 }
 
+function minPositive(list: number[]): number {
+  const v = list.filter((n) => n > 0);
+  return v.length ? Math.min(...v) : 0;
+}
+
 function availabilityError(a: AvailabilityValue, stock: number, maxAdvance: number): string | null {
   if (!a.availability) return "Choisissez la disponibilité du produit (Disponible à Madagascar ou Sur commande)";
   if (a.availability === "disponible_localement" && stock <= 0) return "Indiquez le stock réellement disponible à Madagascar";
@@ -530,7 +535,7 @@ export function VendorProductsManager({ vendorId, vendorActive }: { vendorId: st
             value={avail}
             onChange={setAvail}
             rules={rules}
-            examplePrice={entries.length ? Math.min(...entries.map((e) => e.variant.price_mga || Infinity)) || 0 : 0}
+            examplePrice={minPositive(entries.map((e) => e.variant.price_mga))}
           />
 
           <div className="rounded-xl border border-border bg-background p-3">
@@ -901,7 +906,7 @@ function EditProductModal({
             </label>
           </div>
           <AttributesEditor value={attrs} onChange={setAttrs} />
-          <ProductAvailabilityEditor value={avail} onChange={setAvail} rules={rules} examplePrice={Math.min(...variants.map((v) => v.price_mga || Infinity)) || 0} />
+          <ProductAvailabilityEditor value={avail} onChange={setAvail} rules={rules} examplePrice={minPositive(variants.map((v) => v.price_mga))} />
           <p className="text-[10px] text-muted-foreground">Les changements de disponibilité s'appliquent aux nouvelles commandes ; les commandes déjà payées gardent leurs conditions.</p>
 
           <div>
