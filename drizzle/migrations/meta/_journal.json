@@ -71,6 +71,13 @@
       "when": 1793605971729,
       "tag": "0009_preorder_secure_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793783850349,
+      "tag": "0010_tighten_storage_and_rates_reads",
+      "breakpoints": true
     }
   ]
 }
