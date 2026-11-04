@@ -78,6 +78,13 @@
       "when": 1793783850349,
       "tag": "0010_tighten_storage_and_rates_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793785654692,
+      "tag": "0011_guest_catalog_read_access",
+      "breakpoints": true
     }
   ]
 }
