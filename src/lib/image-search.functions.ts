@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Input = z.object({
   imageBase64: z.string().min(20).max(8_000_000),
-  mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]).default("image/jpeg"),
+  mimeType: z.string().regex(/^image\/[a-z0-9.+-]{1,40}$/i).default("image/jpeg"),
 });
 
 export const analyzeProductImage = createServerFn({ method: "POST" })
