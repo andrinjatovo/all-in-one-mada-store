@@ -7,7 +7,8 @@ import { TicketsPanel } from "@/components/madastore/TicketsPanel";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMGA } from "@/components/madastore/Money";
-import { Store, Wallet, FileCheck, LifeBuoy, BarChart3, ArrowDownToLine, Truck } from "lucide-react";
+import { Store, Wallet, FileCheck, LifeBuoy, BarChart3, ArrowDownToLine, Truck, Scale } from "lucide-react";
+import { AdminPreorderPanel } from "@/components/madastore/AdminPreorderPanel";
 import { AdminVendorApplications, AdminVendorSettings } from "@/components/madastore/AdminVendorApplications";
 import { AdminWalletPanel } from "@/components/madastore/AdminWalletPanel";
 
@@ -22,6 +23,7 @@ const TABS = [
   { id: "deposits", label: "Dépôts", icon: <Wallet className="h-5 w-5" /> },
   { id: "wallet", label: "Wallet", icon: <ArrowDownToLine className="h-5 w-5" /> },
   { id: "logistics", label: "Livraison", icon: <Truck className="h-5 w-5" /> },
+  { id: "disputes", label: "Litiges", icon: <Scale className="h-5 w-5" /> },
   { id: "tickets", label: "Tickets", icon: <LifeBuoy className="h-5 w-5" /> },
 ];
 
@@ -42,6 +44,7 @@ function AdminPage() {
         {tab === "deposits" && <DepositsManager />}
         {user && tab === "wallet" && <AdminWalletPanel userId={user.id} />}
         {tab === "logistics" && <LogisticsPanel />}
+        {tab === "disputes" && <AdminPreorderPanel />}
         {user && tab === "tickets" && <TicketsPanel userId={user.id} isAdmin />}
       </div>
     </ProtectedShell>
