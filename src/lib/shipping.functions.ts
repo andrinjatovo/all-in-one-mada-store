@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type QuoteInput = {
   vendor_lat: number;
@@ -13,17 +14,20 @@ type QuoteInput = {
 
 // Return the vendor's manual flat fee. GPS is used ONLY for distance/duration display and ETA,
 // never to compute the price anymore (see product spec: "Supprimer le calcul automatique basé sur les km").
+const isLat = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= -90 && v <= 90;
+const isLng = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= -180 && v <= 180;
+
 export const getShippingQuote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: QuoteInput) => {
-    if (
-      typeof d?.vendor_lat !== "number" ||
-      typeof d?.vendor_lng !== "number" ||
-      typeof d?.client_lat !== "number" ||
-      typeof d?.client_lng !== "number"
-    ) {
+    if (!isLat(d?.vendor_lat) || !isLng(d?.vendor_lng) || !isLat(d?.client_lat) || !isLng(d?.client_lng)) {
       throw new Error("Invalid coordinates");
     }
-    return d;
+    const base = Number(d?.base_mga);
+    if (!Number.isFinite(base) || base < 0 || base > 100_000_000) {
+      throw new Error("Invalid fee");
+    }
+    return { vendor_lat: d.vendor_lat, vendor_lng: d.vendor_lng, client_lat: d.client_lat, client_lng: d.client_lng, base_mga: base };
   })
   .handler(async ({ data }) => {
     const lovableKey = process.env.LOVABLE_API_KEY;
