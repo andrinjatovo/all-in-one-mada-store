@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { formatMGA } from "./Money";
 import { ShippingModal } from "./ShippingModal";
 import { DeliveryEditModal } from "./DeliveryEditModal";
+import { PreorderOrderPanel } from "./PreorderOrderPanel";
 
 type Order = {
   id: string;
@@ -37,6 +38,20 @@ type Order = {
   vendor_decided_at?: string | null;
   variant_label?: string | null;
   negotiated_offer_id?: string | null;
+  commission_mga?: number;
+  vendor_amount_mga?: number;
+  fulfillment_type?: string;
+  advance_mga?: number;
+  advance_released_mga?: number;
+  advance_released_at?: string | null;
+  preorder_snapshot?: any;
+  supply_status?: string | null;
+  supply_eta?: string | null;
+  supply_history?: any;
+  dispute_status?: string | null;
+  dispute_reason?: string | null;
+  dispute_resolution?: string | null;
+  refunded_mga?: number;
 };
 
 
@@ -89,7 +104,7 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
     const col = role === "client" ? "client_id" : "vendor_id";
     let req = supabase
       .from("orders")
-      .select("id, product_title, product_image, quantity, total_mga, status, created_at, vendor_released, buyer_confirmed_at, auto_release_at, tracking_status, shipping_address, tracking_code, client_hidden, delivery_fee_mga, delivery_days_min, delivery_days_max, depart_at, depart_city, courier_name, coop_name, shipping_mode, vendor_acceptance, vendor_refusal_reason, updated_at, released_at, delivered_at, buyer_confirmed_at, vendor_decided_at, variant_label, negotiated_offer_id" as any)
+      .select("id, product_title, product_image, quantity, total_mga, status, created_at, vendor_released, buyer_confirmed_at, auto_release_at, tracking_status, shipping_address, tracking_code, client_hidden, delivery_fee_mga, delivery_days_min, delivery_days_max, depart_at, depart_city, courier_name, coop_name, shipping_mode, vendor_acceptance, vendor_refusal_reason, updated_at, released_at, delivered_at, buyer_confirmed_at, vendor_decided_at, variant_label, negotiated_offer_id, commission_mga, vendor_amount_mga, fulfillment_type, advance_mga, advance_released_mga, advance_released_at, preorder_snapshot, supply_status, supply_eta, supply_history, dispute_status, dispute_reason, dispute_resolution, refunded_mga" as any)
 
       .eq(col, userId)
       .order("created_at", { ascending: false });
@@ -192,6 +207,10 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
             </div>
 
             {o.variant_label && <div className="text-[11px] text-muted-foreground">{o.variant_label}{o.negotiated_offer_id && " · prix négocié"}</div>}
+            {o.fulfillment_type === "sur_commande" && <PreorderOrderPanel o={o} role={role} onChange={load} />}
+            {o.vendor_acceptance === "annule_client" && (
+              <div className="mt-2 rounded-lg bg-muted px-2 py-1 text-[11px] font-bold">Commande annulée par le client · montant remboursé</div>
+            )}
             {o.vendor_acceptance === "en_attente" && (
               <div className="mt-2 rounded-lg bg-yellow-500/10 px-2 py-1 text-[11px] font-bold">⏳ En attente d'acceptation vendeur{role === "client" && " — Facture disponible après acceptation de la commande par le vendeur."}</div>
             )}
@@ -211,7 +230,7 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
             {/* Vendor actions */}
             {role === "vendeur" && o.vendor_acceptance !== "en_attente" && o.vendor_acceptance !== "refuse" && (
               <div className="mt-2 flex flex-wrap gap-2">
-                {o.status === "paye" && !o.tracking_status?.match(/shipped|in_transit|nearby|at_depot|delivered/) && (
+                {o.status === "paye" && !o.tracking_status?.match(/shipped|in_transit|nearby|at_depot|delivered/) && (o.fulfillment_type !== "sur_commande" || ["arrive_madagascar", "pret_expedition"].includes(o.supply_status ?? "")) && (
                   <button onClick={() => setShipOrder(o)} className="rounded-lg bg-mada-green px-3 py-1 text-xs font-bold text-secondary-foreground">
                     🚚 Expédier
                   </button>
@@ -257,7 +276,7 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
             )}
 
             {/* Client confirm reception */}
-            {role === "client" && !o.vendor_released && o.vendor_acceptance === "accepte" && (o.status === "expedie" || o.status === "livre" || o.status === "paye") && (
+            {role === "client" && o.fulfillment_type !== "sur_commande" && !o.vendor_released && o.vendor_acceptance === "accepte" && (o.status === "expedie" || o.status === "livre" || o.status === "paye") && (
               <button
                 onClick={async () => {
                   const { error } = await supabase.rpc("confirm_delivery" as any, { _order_id: o.id });
@@ -271,7 +290,7 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
               </button>
             )}
             {o.vendor_released && <div className="mt-1 text-[10px] font-bold text-mada-green">Fonds vendeur débloqués</div>}
-            {role === "vendeur" && !o.vendor_released && o.auto_release_at && (
+            {role === "vendeur" && o.fulfillment_type !== "sur_commande" && !o.vendor_released && o.auto_release_at && (
               <div className="mt-1 text-[10px] text-muted-foreground">Auto-libération: {new Date(o.auto_release_at).toLocaleDateString("fr-FR")}</div>
             )}
             {role === "client" && (o.status === "livre" || o.status === "annule" || o.status === "rembourse") && (
