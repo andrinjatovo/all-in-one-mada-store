@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { peekReturnPath, takeReturnPath } from "@/lib/guest-intent";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,12 +24,17 @@ interface Props {
   subtitle: string;
   accent: "red" | "green";
   icon: ReactNode;
+  initialMode?: "login" | "signup";
 }
 
-export function AuthCard({ variant, title, subtitle, accent, icon }: Props) {
+export function AuthCard({ variant, title, subtitle, accent, icon, initialMode = "login" }: Props) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [loading, setLoading] = useState(false);
+  const [resumeHint, setResumeHint] = useState(false);
+
+  useEffect(() => { setMode(initialMode); }, [initialMode]);
+  useEffect(() => { setResumeHint(!!peekReturnPath()); }, []);
 
   // common
   const [email, setEmail] = useState("");
@@ -75,9 +81,8 @@ export function AuthCard({ variant, title, subtitle, accent, icon }: Props) {
         const priority: AppRole[] = ["admin", "vendeur", "client"];
         const role = priority.find((r) => roles?.some((x) => x.role === r)) ?? null;
         toast.success("Connecté avec succès");
-        const intendedPath = window.sessionStorage.getItem("mada-return-after-login");
-        if (intendedPath?.startsWith("/") && !intendedPath.startsWith("//")) {
-          window.sessionStorage.removeItem("mada-return-after-login");
+        const intendedPath = takeReturnPath();
+        if (intendedPath) {
           window.location.assign(intendedPath);
           return;
         }
@@ -99,6 +104,19 @@ export function AuthCard({ variant, title, subtitle, accent, icon }: Props) {
             signUpData.user.id,
             LEGAL_CHECKS.map((c) => c.key),
           );
+        }
+        if (variant === "client" && signUpData.session) {
+          const intendedPath = takeReturnPath();
+          if (intendedPath) {
+            toast.success("Compte créé. Vous êtes connecté !");
+            window.location.assign(intendedPath);
+            return;
+          }
+        }
+        if (variant === "client" && !signUpData.session) {
+          toast.success("Compte créé. Confirmez votre e-mail puis connectez-vous pour reprendre votre achat.");
+          setMode("login");
+          return;
         }
         toast.success(
           variant === "vendeur"
@@ -135,6 +153,12 @@ export function AuthCard({ variant, title, subtitle, accent, icon }: Props) {
             <h1 className="text-2xl font-black tracking-tight">{title}</h1>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
+
+          {resumeHint && variant === "client" && (
+            <div className="mt-5 rounded-xl border border-mada-green/40 bg-mada-green/10 p-3 text-xs text-foreground">
+              Pour continuer votre achat, connectez-vous ou créez gratuitement votre compte. Vous reviendrez automatiquement là où vous étiez, avec votre sélection.
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="mt-6 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
