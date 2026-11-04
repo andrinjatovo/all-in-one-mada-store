@@ -246,11 +246,11 @@ export function OrdersList({ userId, role }: { userId: string; role: "client" | 
               </div>
             )}
 
-            {role === "vendeur" && o.vendor_acceptance === "accepte" && (
+            {role === "vendeur" && o.vendor_acceptance === "accepte" && (o.fulfillment_type !== "sur_commande" || (!o.vendor_released && ["arrive_madagascar", "pret_expedition"].includes(o.supply_status ?? ""))) && (
               <div className="mt-2 space-y-1">
                 <div className="text-[10px] font-bold uppercase text-muted-foreground">Statut du colis</div>
                 <div className="flex flex-wrap gap-1">
-                  {VENDOR_STEPS.map((s) => (
+                  {VENDOR_STEPS.filter((s) => o.fulfillment_type !== "sur_commande" || s.id !== "cancelled").map((s) => (
                     <button
                       key={s.id}
                       onClick={() => setTracking(o.id, s.id)}
