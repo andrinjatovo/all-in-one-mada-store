@@ -38,7 +38,15 @@ export const askMadaAI = createServerFn({ method: "POST" })
         },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...data.messages],
+          // Only the caller's own (user-role) messages are forwarded: client-supplied
+          // "assistant" turns are untrusted and could be forged to steer the model.
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...data.messages
+              .filter((m) => m.role === "user")
+              .slice(-20)
+              .map((m) => ({ role: "user" as const, content: m.content })),
+          ],
         }),
       });
       if (!res.ok) {
