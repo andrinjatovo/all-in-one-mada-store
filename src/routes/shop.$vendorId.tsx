@@ -36,7 +36,7 @@ function ShopPage() {
   const sold = products.reduce((sum, product) => sum + Number(product.sold_count ?? 0), 0);
 
   return <main className="min-h-screen bg-background pb-12">
-    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur"><BackButton fallback="/client" /><h1 className="truncate text-sm font-black">{shop.shop_name}</h1></header>
+    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur"><BackButton fallback="/" /><h1 className="truncate text-sm font-black">{shop.shop_name}</h1></header>
     <div className="mx-auto max-w-6xl">
       <div className="relative h-40 overflow-hidden bg-muted sm:h-56">{shop.banner_url ? <img src={shop.banner_url} alt={`Bannière ${shop.shop_name}`} className="h-full w-full object-cover" /> : <div className="h-full bg-gradient-mada" />}</div>
       <section className="px-4 pb-6">

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Minus, Plus, Trash2, ShoppingBag, Pencil, Ticket, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { LoginPrompt } from "@/components/madastore/LoginPrompt";
 import { formatMGA } from "@/components/madastore/Money";
 import { AddressSelector } from "@/components/madastore/AddressSelector";
 import { ShippingQuoteCard, type Quote } from "@/components/madastore/ShippingQuoteCard";
@@ -74,9 +75,7 @@ function CartPage() {
     };
   }, [reload]);
 
-  useEffect(() => {
-    if (!authLoading && !user) navigate({ to: "/auth/client" });
-  }, [authLoading, user, navigate]);
+  const [askLogin, setAskLogin] = useState(false);
 
   // Coupons du client
   useEffect(() => {
@@ -156,7 +155,7 @@ function CartPage() {
   }
 
   async function pay() {
-    if (!user) return;
+    if (!user) return setAskLogin(true);
     if (selected.length === 0) return toast.error("Sélectionnez au moins un produit");
     if (!address) return toast.error("Adresse requise");
     if (!canPay) return toast.error("Calcul de livraison incomplet");
@@ -216,7 +215,7 @@ function CartPage() {
   return (
     <div className="min-h-screen bg-background pb-56">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
-        <BackButton fallback="/client" />
+        <BackButton fallback={user ? "/client" : "/"} />
         <h1 className="text-sm font-black">Mon panier ({items.length})</h1>
       </header>
 
@@ -224,7 +223,7 @@ function CartPage() {
         {items.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
             Panier vide.{" "}
-            <Link to="/client" className="font-bold text-mada-red">
+            <Link to={user ? "/client" : "/"} className="font-bold text-mada-red">
               Continuer mes achats →
             </Link>
           </div>
@@ -455,7 +454,7 @@ function CartPage() {
               </div>
               <button
                 onClick={pay}
-                disabled={paying || !canPay}
+                disabled={paying || (!!user && !canPay)}
                 className="inline-flex items-center gap-2 rounded-full bg-mada-red px-6 py-3 text-sm font-black text-primary-foreground shadow-glow-red disabled:opacity-50"
               >
                 <ShoppingBag className="h-4 w-4" />
@@ -463,6 +462,8 @@ function CartPage() {
                   ? "Paiement..."
                   : selected.length === 0
                     ? "Sélectionnez"
+                    : !user
+                      ? `Continuer (${selected.length})`
                     : !address
                       ? "Adresse requise"
                       : `Payer (${selected.length})`}
@@ -472,6 +473,7 @@ function CartPage() {
         </div>
       )}
 
+      {askLogin && <LoginPrompt reason="buy" returnPath="/cart" onClose={() => setAskLogin(false)} />}
       {editing !== null && items[editing] && (
         <CartItemEditor
           item={items[editing]}

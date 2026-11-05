@@ -74,6 +74,12 @@ export function Hero() {
           </Link>
         </div>
 
+        <div className="mt-6 flex justify-center">
+          <a href="#catalogue" className="rounded-full border border-border bg-card/70 px-6 py-3 text-sm font-bold hover:border-mada-red hover:text-mada-red">
+            Explorer les produits sans compte ↓
+          </a>
+        </div>
+
         {/* Trust badges */}
         <div
           className="mt-20 grid grid-cols-2 gap-4 sm:grid-cols-4 animate-mada-fade-up"
