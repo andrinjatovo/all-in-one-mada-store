@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export function ProductShare({ title }: { title: string }) {
   const [open, setOpen] = useState(false);
-  const url = typeof window === "undefined" ? "" : window.location.href;
+  const url = typeof window === "undefined" ? "" : window.location.origin + window.location.pathname;
 
   async function nativeShare() {
     if (navigator.share) {
