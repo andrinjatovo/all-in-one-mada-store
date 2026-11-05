@@ -6,6 +6,7 @@ import { formatMGA } from "./Money";
 import { Search, ShoppingCart, Camera, X, Loader2, Flame, Ticket, Zap, Sparkles, TrendingUp, BadgePercent } from "lucide-react";
 import { analyzeProductImage } from "@/lib/image-search.functions";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
 
 type Product = {
   id: string;
@@ -59,14 +60,13 @@ export function MarketplaceFeed() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const analyze = useServerFn(analyzeProductImage);
+  const { user } = useAuth();
 
   useEffect(() => {
     supabase.from("categories").select("*").then((r) => setCats((r.data ?? []) as Category[]));
     refreshCart();
     const handler = () => refreshCart();
     window.addEventListener("dago-cart-changed", handler);
-    // Coupons de fidélité : générés en arrière-plan (aucun affichage)
-    supabase.rpc("grant_loyalty_coupons" as any).then(() => {});
     return () => window.removeEventListener("dago-cart-changed", handler);
   }, []);
 
@@ -141,9 +141,13 @@ export function MarketplaceFeed() {
 
   // Enregistre la recherche pour l'IA de recommandation
   useEffect(() => {
-    if (!qd) return;
+    if (user) supabase.rpc("grant_loyalty_coupons" as any).then(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!qd || !user) return;
     supabase.rpc("track_event" as any, { _event_type: "search", _query: qd } as any).then(() => {});
-  }, [qd]);
+  }, [qd, user]);
 
 
   useEffect(() => {
@@ -166,6 +170,7 @@ export function MarketplaceFeed() {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
+    if (!user) return toast.error("Connectez-vous pour utiliser la recherche par photo");
     if (f.size > 6_000_000) return toast.error("Image trop grande (max 6 Mo)");
     setImgSearching(true);
     try {
@@ -275,7 +280,7 @@ export function MarketplaceFeed() {
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
             {products.map((p) => (
-              <ProductCard key={p.id} p={p} />
+              <ProductCard key={p.id} p={p} tracked={!!user} />
             ))}
           </div>
           <div ref={sentinelRef} className="flex h-12 items-center justify-center text-xs text-muted-foreground">
@@ -287,7 +292,7 @@ export function MarketplaceFeed() {
   );
 }
 
-function ProductCard({ p }: { p: Product }) {
+function ProductCard({ p, tracked }: { p: Product; tracked: boolean }) {
   const promo = p.discount_percent > 0 && (!p.promo_until || new Date(p.promo_until) > new Date());
   const flash = promo && p.discount_percent >= 20 && !!p.promo_until;
   return (
@@ -295,6 +300,7 @@ function ProductCard({ p }: { p: Product }) {
       to="/product/$id"
       params={{ id: p.id }}
       onClick={() => {
+        if (!tracked) return;
         supabase.rpc("increment_product_click" as any, { _product_id: p.id } as any).then(() => {});
         supabase.rpc("track_event" as any, { _event_type: "click", _product_id: p.id } as any).then(() => {});
       }}

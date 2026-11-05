@@ -21,7 +21,7 @@ export function ProductReviews({ productId, vendorId, userId, ratingAvg, ratingC
   const [submitting, setSubmitting] = useState(false);
 
   async function load() {
-    const { data } = await supabase.from("product_reviews").select("id,user_id,rating,content,images,is_verified_purchase,created_at").eq("product_id", productId).order("created_at", { ascending: false });
+    const { data } = await supabase.from("product_reviews").select(userId ? "id,user_id,rating,content,images,is_verified_purchase,created_at" : "id,rating,content,images,is_verified_purchase,created_at").eq("product_id", productId).order("created_at", { ascending: false });
     const rows = (data ?? []) as Review[];
     setReviews(rows);
     const paths = rows.flatMap((review) => review.images ?? []);

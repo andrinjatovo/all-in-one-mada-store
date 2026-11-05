@@ -15,22 +15,48 @@ import { ProductShare } from "@/components/madastore/ProductShare";
 import { ProductReviews, Stars } from "@/components/madastore/ProductReviews";
 import { Button } from "@/components/ui/button";
 import { useMarketplaceRules } from "@/components/madastore/ProductAvailabilityEditor";
+import { LoginPrompt, type LoginReason } from "@/components/madastore/LoginPrompt";
+import { savePurchaseIntent, takePurchaseIntent } from "@/lib/guest-intent";
+import { getProductShareMeta } from "@/lib/product-meta.functions";
 import { computePreorderSplit, formatDateFr, totalPreorderDays, type PreorderInfo } from "@/lib/preorder";
 
 export const Route = createFileRoute("/product/$id")({
-  head: () => ({ meta: [
-    { title: "Voir le produit — ALL IN ONE MADA STORE" },
-    { name: "description", content: "Prix, variantes, avis vérifiés et livraison d’un produit sur ALL IN ONE MADA STORE." },
-    { property: "og:title", content: "Voir le produit — ALL IN ONE MADA STORE" },
-    { property: "og:description", content: "Découvrez ce produit, ses variantes et les avis clients vérifiés." },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary_large_image" },
-  ] }),
+  loader: ({ params }) => getProductShareMeta({ data: { id: params.id } }),
+  head: ({ loaderData }) => {
+    const m = loaderData;
+    const title = m ? `${m.title} — ${formatMGA(m.priceMga)} | ALL IN ONE MADA STORE` : "Voir le produit — ALL IN ONE MADA STORE";
+    const desc = m ? `${formatMGA(m.priceMga)}${m.shopName ? " · Boutique " + m.shopName : ""} — ${m.description || "Disponible sur ALL IN ONE MADA STORE 🇲🇬"}` : "Prix, variantes, avis vérifiés et livraison d’un produit sur ALL IN ONE MADA STORE.";
+    const meta: any[] = [
+      { title }, { name: "description", content: desc },
+      { property: "og:title", content: title }, { property: "og:description", content: desc },
+      { property: "og:site_name", content: "ALL IN ONE MADA STORE" },
+      { property: "og:type", content: "product" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: title }, { name: "twitter:description", content: desc },
+    ];
+    if (m?.image) meta.push({ property: "og:image", content: m.image }, { name: "twitter:image", content: m.image });
+    return { meta };
+  },
+  errorComponent: () => <ProductUnavailable />,
+  notFoundComponent: () => <ProductUnavailable />,
   component: ProductPage,
 });
 
 type Variant = { image_index: number; price_mga: number; colors: string[]; sizes: string[]; units?: string[]; custom?: string; stock?: number };
 type Comment = { id: string; user_id: string; author_name: string | null; content: string; created_at: string };
+
+function ProductUnavailable() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="max-w-sm text-center space-y-3">
+        <div className="text-5xl">📦</div>
+        <h1 className="text-lg font-black">Produit indisponible</h1>
+        <p className="text-sm text-muted-foreground">Ce produit a été retiré, désactivé ou n’existe plus. Découvrez les autres produits de la marketplace.</p>
+        <Link to="/" className="inline-block rounded-full bg-mada-red px-5 py-2.5 text-sm font-black text-primary-foreground">Retour à l’accueil</Link>
+      </div>
+    </div>
+  );
+}
 
 function usePromoRemaining(until: string | null | undefined, active: boolean) {
   const [label, setLabel] = useState("");
@@ -74,6 +100,8 @@ function ProductPage() {
   const [address, setAddress] = useState<AddressRow | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [buying, setBuying] = useState(false);
+  const [loginReason, setLoginReason] = useState<LoginReason | null>(null);
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -82,8 +110,11 @@ function ProductPage() {
       if (data) {
         const { data: v } = await supabase.from("vendor_profiles").select("id,shop_name,phone,logo_url,description,created_at,rating_avg,rating_count").eq("id", data.vendor_id).maybeSingle();
         setVendor(v);
-        supabase.rpc("increment_product_view" as any, { _product_id: id } as any).then(() => {});
-        supabase.rpc("track_event" as any, { _event_type: "view", _product_id: id } as any).then(() => {});
+        const { data: sess } = await supabase.auth.getSession();
+        if (sess.session) {
+          supabase.rpc("increment_product_view" as any, { _product_id: id } as any).then(() => {});
+          supabase.rpc("track_event" as any, { _event_type: "view", _product_id: id } as any).then(() => {});
+        }
 
       }
       setLoading(false);
@@ -95,19 +126,19 @@ function ProductPage() {
     const start = Date.now();
     return () => {
       const ms = Date.now() - start;
-      if (ms > 2000) {
+      if (ms > 2000 && user) {
         supabase
           .rpc("track_event" as any, { _event_type: "dwell", _product_id: id, _dwell_ms: Math.min(ms, 600000) } as any)
           .then(() => {});
       }
     };
-  }, [id]);
+  }, [id, user]);
 
 
   async function reloadEngagement() {
     const [{ data: l }, { data: c }] = await Promise.all([
-      supabase.from("product_likes").select("user_id,reaction").eq("product_id", id),
-      supabase.from("product_comments").select("*").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("product_likes").select(user ? "user_id,reaction" : "reaction").eq("product_id", id),
+      supabase.from("product_comments").select("id,product_id,author_name,content,created_at").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
     ]);
     setLikes(l?.filter((item: any) => (item.reaction ?? "like") === "like").length ?? 0);
     setLoves(l?.filter((item: any) => item.reaction === "love").length ?? 0);
@@ -118,13 +149,6 @@ function ProductPage() {
   useEffect(() => {
     if (p) reloadEngagement();
   }, [p, user]);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      window.sessionStorage.setItem("mada-return-after-login", window.location.pathname + window.location.search);
-      navigate({ to: "/auth/client" });
-    }
-  }, [authLoading, user, navigate]);
 
   const variants: Variant[] = Array.isArray(p?.variants) ? p.variants : [];
   const currentVariant = variants.find((v) => v.image_index === imgIdx) ?? variants[0];
@@ -149,7 +173,37 @@ function ProductPage() {
   });
 
 
+  // Reprise de la sélection après connexion (aucun achat automatique)
+  useEffect(() => {
+    if (!p || authLoading || !user) return;
+    const intent = takePurchaseIntent(p.id);
+    if (!intent) return;
+    const vs: Variant[] = Array.isArray(p.variants) ? p.variants : [];
+    const v = vs.find((x) => x.image_index === intent.imgIdx) ?? vs[0];
+    setImgIdx(intent.imgIdx);
+    setColor(intent.color && v?.colors?.includes(intent.color) ? intent.color : null);
+    setSize(intent.size && v?.sizes?.includes(intent.size) ? intent.size : null);
+    setUnit(intent.unit && v?.units?.includes(intent.unit) ? intent.unit : null);
+    const base = v?.price_mga ?? p.price_mga;
+    const pct = p.discount_percent > 0 && (!p.promo_until || new Date(p.promo_until) > new Date()) ? p.discount_percent : 0;
+    const nowPrice = pct ? Math.floor((base * (100 - pct)) / 100) : base;
+    const stockNow = Math.min(p.stock ?? 0, typeof v?.stock === "number" ? v.stock : Infinity);
+    const notes: string[] = [];
+    if (nowPrice !== intent.unitPrice) notes.push(`Le prix a changé : ${formatMGA(intent.unitPrice)} → ${formatMGA(nowPrice)}.`);
+    let q = intent.qty;
+    if (q > stockNow) { q = Math.max(1, stockNow); notes.push(`Stock disponible réduit : quantité ajustée à ${q}.`); }
+    setQty(q);
+    setResumeNotice(notes.length ? notes.join(" ") + " Vérifiez avant de confirmer." : null);
+    setPopup(intent.mode);
+    toast.success("Votre sélection a été restaurée");
+  }, [p, user, authLoading]);
+
+  function askLogin(reason: LoginReason) {
+    setLoginReason(reason);
+  }
+
   function openPopup(mode: "cart" | "buy") {
+    setResumeNotice(null);
     setQty(1);
     setColor(null);
     setSize(null);
@@ -177,10 +231,14 @@ function ProductPage() {
   }
 
   async function confirmBuy() {
-    if (!user) return;
     if (currentVariant?.colors?.length && !color) return toast.error("Choisissez une couleur");
     if (currentVariant?.sizes?.length && !size) return toast.error("Choisissez une taille/pointure");
     if (currentVariant?.units?.length && !unit) return toast.error("Choisissez une unité");
+    if (!user) {
+      savePurchaseIntent({ productId: p.id, mode: "buy", imgIdx, qty, color, size, unit, unitPrice: displayPrice });
+      setPopup(null);
+      return askLogin("buy");
+    }
     if (!address) return toast.error("Adresse de livraison requise");
     if (!quote) return toast.error("Livraison en cours de calcul...");
     setBuying(true);
@@ -210,7 +268,8 @@ function ProductPage() {
   }
 
   async function contactSeller() {
-    if (!user || !vendor) return;
+    if (!user) return askLogin("message");
+    if (!vendor) return;
     const { data: existing } = await supabase
       .from("conversations").select("id").eq("client_id", user.id).eq("vendor_id", vendor.id).maybeSingle();
     let conversationId = existing?.id;
@@ -223,7 +282,7 @@ function ProductPage() {
   }
 
   async function toggleReaction(next: "like" | "love") {
-    if (!user) return;
+    if (!user) return askLogin("social");
     if (reaction === next) {
       await supabase.from("product_likes").delete().eq("product_id", id).eq("user_id", user.id);
     } else if (reaction) {
@@ -249,7 +308,7 @@ function ProductPage() {
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse">Chargement...</div></div>;
-  if (!p) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Produit introuvable.</div>;
+  if (!p) return <ProductUnavailable />;
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -325,6 +384,9 @@ function ProductPage() {
 
         <div className="mx-4 rounded-md border border-border bg-card p-4 space-y-3 sm:mx-0">
           <h3 className="text-sm font-black">💬 Commentaires</h3>
+          {!user && (
+            <button onClick={() => askLogin("social")} className="text-xs font-bold text-mada-red">Connectez-vous pour commenter →</button>
+          )}
           {user && (
             <div className="flex gap-2">
               <input
@@ -354,7 +416,7 @@ function ProductPage() {
       </div>
 
       {/* Bottom fixed action bar */}
-      {role === "client" && (
+      {(!user || role === "client") && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl">
           <div className="mx-auto flex max-w-3xl items-center gap-2">
             <Button variant="outline" onClick={contactSeller} className="h-12 flex-1 flex-col gap-0 text-[10px]">
@@ -434,6 +496,12 @@ function ProductPage() {
               </div>
             </div>
 
+            {resumeNotice && (
+              <div className="rounded-lg border border-mada-red/40 bg-mada-red/10 p-2 text-xs font-bold text-mada-red">{resumeNotice}</div>
+            )}
+            {popup === "buy" && !user && (
+              <p className="text-xs text-muted-foreground">Livraison calculée selon votre adresse après connexion. Aucun paiement sans votre confirmation.</p>
+            )}
             {popup === "buy" && user && (
               <div className="space-y-2">
                 <AddressSelector userId={user.id} value={address?.id ?? null} onChange={setAddress} />
@@ -475,12 +543,13 @@ function ProductPage() {
               </button>
             ) : (
               <button onClick={confirmBuy} disabled={buying} className="w-full rounded-xl bg-mada-red py-3 text-sm font-black text-primary-foreground disabled:opacity-50">
-                {buying ? "Achat..." : "Confirmer l'achat"}
+                {buying ? "Achat..." : user ? "Confirmer l'achat" : "Continuer l'achat"}
               </button>
             )}
           </div>
         </div>
       )}
+      {loginReason && <LoginPrompt reason={loginReason} returnPath={`/product/${id}`} onClose={() => setLoginReason(null)} />}
     </div>
   );
 }
