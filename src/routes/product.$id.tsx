@@ -43,7 +43,7 @@ export const Route = createFileRoute("/product/$id")({
 });
 
 type Variant = { image_index: number; price_mga: number; colors: string[]; sizes: string[]; units?: string[]; custom?: string; stock?: number };
-type Comment = { id: string; user_id: string; author_name: string | null; content: string; created_at: string };
+type Comment = { id: string; user_id?: string; author_name: string | null; content: string; created_at: string };
 
 function ProductUnavailable() {
   return (
@@ -137,7 +137,7 @@ function ProductPage() {
 
   async function reloadEngagement() {
     const [{ data: l }, { data: c }] = await Promise.all([
-      supabase.from("product_likes").select(user ? "user_id,reaction" : "reaction").eq("product_id", id),
+      supabase.from("product_likes").select((user ? "user_id,reaction" : "reaction") as "*").eq("product_id", id),
       supabase.from("product_comments").select("id,product_id,author_name,content,created_at").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
     ]);
     setLikes(l?.filter((item: any) => (item.reaction ?? "like") === "like").length ?? 0);
