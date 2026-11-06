@@ -1,3 +1,4 @@
+import { getPublishedReviewPhotoUrls } from "@/lib/review-photos.functions";
 import { useEffect, useMemo, useState } from "react";
 import { Camera, CheckCircle2, Flag, Star, X } from "lucide-react";
 import { toast } from "sonner";
@@ -26,10 +27,14 @@ export function ProductReviews({ productId, vendorId, userId, ratingAvg, ratingC
     setReviews(rows);
     const paths = rows.flatMap((review) => review.images ?? []);
     if (paths.length) {
-      const { data: signed } = await supabase.storage.from("reviews").createSignedUrls(paths, 3600);
-      const map: Record<string, string> = {};
-      signed?.forEach((item, index) => { if (item.signedUrl) map[paths[index]] = item.signedUrl; });
-      setPhotoUrls(map);
+      const map = await getPublishedReviewPhotoUrls({ data: { productId } }).catch(() => ({} as Record<string, string>));
+      // Own (possibly unpublished) photos: signed through the owner-bound storage rule
+      const missing = paths.filter((p) => !map[p] && userId && p.startsWith(userId + "/"));
+      if (missing.length) {
+        const { data: signed } = await supabase.storage.from("reviews").createSignedUrls(missing, 3600);
+        signed?.forEach((item, index) => { if (item.signedUrl) map[missing[index]] = item.signedUrl; });
+      }
+      setPhotoUrls({ ...map });
     }
     if (userId) {
       const { data: eligible } = await supabase.from("orders").select("id").eq("client_id", userId).eq("product_id", productId).or("status.eq.livre,buyer_confirmed_at.not.is.null,tracking_status.eq.delivered").order("created_at", { ascending: false }).limit(1).maybeSingle();

@@ -85,6 +85,13 @@
       "when": 1793785654692,
       "tag": "0011_guest_catalog_read_access",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793942796133,
+      "tag": "0012_bind_review_photo_reads",
+      "breakpoints": true
     }
   ]
 }
