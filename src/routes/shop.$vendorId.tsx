@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, Package, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+import { useNavigate } from "@tanstack/react-router";
 import { BackButton } from "@/components/madastore/BackButton";
 import { Stars } from "@/components/madastore/ProductReviews";
 import { formatMGA } from "@/components/madastore/Money";
@@ -23,20 +25,27 @@ function ShopPage() {
   const [shop, setShop] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
+    if (!authLoading && !user) navigate({ to: "/auth/client" });
+  }, [authLoading, user, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
     Promise.all([
       supabase.from("vendor_profiles").select("id,shop_name,logo_url,banner_url,description,created_at,rating_avg,rating_count").eq("id", vendorId).eq("status", "actif").maybeSingle(),
       supabase.from("products").select("id,title,images,price_mga,discount_percent,promo_until,sold_count").eq("vendor_id", vendorId).eq("is_active", true).order("created_at", { ascending: false }),
     ]).then(([profile, productRows]) => { setShop(profile.data); setProducts(productRows.data ?? []); setLoading(false); });
-  }, [vendorId]);
+  }, [vendorId, user]);
 
   if (loading) return <div className="grid min-h-screen place-items-center text-muted-foreground">Chargement de la boutique…</div>;
   if (!shop) return <div className="grid min-h-screen place-items-center text-muted-foreground">Boutique introuvable ou inactive.</div>;
   const sold = products.reduce((sum, product) => sum + Number(product.sold_count ?? 0), 0);
 
   return <main className="min-h-screen bg-background pb-12">
-    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur"><BackButton fallback="/" /><h1 className="truncate text-sm font-black">{shop.shop_name}</h1></header>
+    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur"><BackButton fallback="/client" /><h1 className="truncate text-sm font-black">{shop.shop_name}</h1></header>
     <div className="mx-auto max-w-6xl">
       <div className="relative h-40 overflow-hidden bg-muted sm:h-56">{shop.banner_url ? <img src={shop.banner_url} alt={`Bannière ${shop.shop_name}`} className="h-full w-full object-cover" /> : <div className="h-full bg-gradient-mada" />}</div>
       <section className="px-4 pb-6">

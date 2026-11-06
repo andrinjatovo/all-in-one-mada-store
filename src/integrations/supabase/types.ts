@@ -1500,6 +1500,7 @@ export type Database = {
         }[]
       }
       get_order_invoice: { Args: { _order_id: string }; Returns: Json }
+      get_shared_product: { Args: { _id: string }; Returns: Json }
       grant_loyalty_coupons: { Args: never; Returns: number }
       has_role: {
         Args: {

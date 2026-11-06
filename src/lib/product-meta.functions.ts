@@ -36,19 +36,15 @@ export const getProductShareMeta = createServerFn({ method: "GET" })
           },
         },
       });
-      const { data: p } = await sb
-        .from("products")
-        .select("id,title,description,images,price_mga,discount_percent,promo_until,vendor_id,variants")
-        .eq("id", data.id)
-        .eq("is_active", true)
-        .maybeSingle();
+      const { data: shared } = await sb.rpc("get_shared_product" as any, { _id: data.id } as any);
+      const p = (shared as any)?.product as any;
       if (!p) return null;
-      const { data: v } = await sb.from("vendor_profiles").select("shop_name").eq("id", p.vendor_id).maybeSingle();
+      const v = (shared as any)?.vendor as { shop_name?: string } | null;
       const promo = p.discount_percent > 0 && (!p.promo_until || new Date(p.promo_until) > new Date());
       const v0 = Array.isArray(p.variants) ? (p.variants as any[])[0] : null;
       const base = Number(v0?.price_mga ?? p.price_mga);
       const price = promo ? Math.floor((base * (100 - p.discount_percent)) / 100) : base;
-      const image = (p.images ?? []).find((i) => typeof i === "string" && i.startsWith("https://")) ?? null;
+      const image = (p.images ?? []).find((i: unknown) => typeof i === "string" && i.startsWith("https://")) ?? null;
       return {
         id: p.id,
         title: p.title,

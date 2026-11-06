@@ -105,12 +105,23 @@ function ProductPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("products").select("*").eq("id", id).eq("is_active", true).maybeSingle();
+      const { data: sess } = await supabase.auth.getSession();
+      let data: any = null;
+      if (sess.session) {
+        const r = await supabase.from("products").select("*").eq("id", id).eq("is_active", true).maybeSingle();
+        data = r.data;
+        if (data) {
+          const { data: v } = await supabase.from("vendor_profiles").select("id,shop_name,phone,logo_url,description,created_at,rating_avg,rating_count").eq("id", data.vendor_id).maybeSingle();
+          setVendor(v);
+        }
+      } else {
+        // Visiteur : accès limité au seul produit du lien partagé
+        const { data: shared } = await supabase.rpc("get_shared_product" as any, { _id: id } as any);
+        data = (shared as any)?.product ?? null;
+        setVendor((shared as any)?.vendor ?? null);
+      }
       setP(data);
       if (data) {
-        const { data: v } = await supabase.from("vendor_profiles").select("id,shop_name,phone,logo_url,description,created_at,rating_avg,rating_count").eq("id", data.vendor_id).maybeSingle();
-        setVendor(v);
-        const { data: sess } = await supabase.auth.getSession();
         if (sess.session) {
           supabase.rpc("increment_product_view" as any, { _product_id: id } as any).then(() => {});
           supabase.rpc("track_event" as any, { _event_type: "view", _product_id: id } as any).then(() => {});

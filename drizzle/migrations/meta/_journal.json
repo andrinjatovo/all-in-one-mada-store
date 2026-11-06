@@ -92,6 +92,13 @@
       "when": 1793942796133,
       "tag": "0012_bind_review_photo_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793943605788,
+      "tag": "0013_restrict_guest_to_shared_product",
+      "breakpoints": true
     }
   ]
 }

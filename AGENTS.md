@@ -6,3 +6,4 @@
 - New orders start with `vendor_acceptance = 'en_attente'`; invoices are served only by `get_order_invoice`, which refuses unaccepted orders and non-parties.
 - "Sur commande" orders get their advance/protected split from the `orders_apply_fulfillment` insert trigger, and all money moves only through security-definer RPCs (`vendor_decide_order`, `confirm_delivery`, `_refund_order`, `admin_resolve_order_dispute`); direct client/vendor writes to order money/status columns are blocked by `orders_guard_direct_update`, so every payment path stays atomic and single-release.
 - Database payment scenarios live in `tests/db/*.sql` as DO blocks that always end with an exception (full rollback); run them with the SQL tool and read the PASS/FAIL list from the error message.
+- Visitors (anon) get no catalogue table access; a shared `/product/$id` link loads only that product via the `get_shared_product` RPC, while home feed, shops, cart and all other pages stay behind login.
